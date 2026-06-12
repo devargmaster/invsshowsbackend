@@ -1,0 +1,52 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import configuration from './config/configuration';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { EventsModule } from './events/events.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { StreamingModule } from './streaming/streaming.module';
+import { RecordingsModule } from './recordings/recordings.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      envFilePath: '.env',
+    }),
+    // Rate limiting: 'api' = límite general, 'auth' = más estricto (anti-brute force)
+    ThrottlerModule.forRoot([
+      {
+        name: 'api',
+        ttl: 60_000,  // ventana de 1 minuto
+        limit: 60,    // 60 req/min por IP
+      },
+      {
+        name: 'auth',
+        ttl: 60_000,  // ventana de 1 minuto
+        limit: 10,    // 10 req/min por IP (login, register, refresh)
+      },
+    ]),
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    SubscriptionsModule,
+    EventsModule,
+    TicketsModule,
+    StreamingModule,
+    RecordingsModule,
+  ],
+  providers: [
+    // Aplica ThrottlerGuard globalmente a todas las rutas
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
+})
+export class AppModule {}

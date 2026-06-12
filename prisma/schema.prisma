@@ -1,0 +1,157 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────
+
+enum UserRole {
+  USER   // Suscriptor normal
+  STAFF  // Personal de validación QR
+  ADMIN  // Administrador total
+}
+
+enum EventMode {
+  PRESENCIAL
+  STREAMING
+  HIBRIDO
+}
+
+enum EventStatus {
+  DRAFT      // Borrador
+  PUBLISHED  // Publicado y visible
+  CANCELLED  // Cancelado
+  COMPLETED  // Finalizado
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PENDING
+}
+
+// ─────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         UserRole @default(USER)
+  refreshToken String?  // Hashed refresh token
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription Subscription?
+  tickets      Ticket[]
+
+  @@map("users")
+}
+
+model Subscription {
+  id         String             @id @default(uuid())
+  userId     String             @unique
+  planName   String             // "basic", "premium", etc.
+  status     SubscriptionStatus @default(ACTIVE)
+  platform   String?            // "ios", "android", "web", "manual"
+  externalId String?            // Apple/Google transaction ID
+
+  startsAt  DateTime  @default(now())
+  expiresAt DateTime? // null = sin vencimiento
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  title       String
+  description String
+  date        DateTime
+  location    String?
+  mode        EventMode
+  status      EventStatus @default(DRAFT)
+
+  coverImageUrl String?
+  maxCapacity   Int?
+
+  // Streaming / Mux
+  muxAssetId    String? // Asset ID de Mux (grabación/VOD)
+  muxPlaybackId String? // Playback ID público de Mux
+  muxLiveId     String? // Live stream ID de Mux
+  streamKey     String? // Stream key RTMP para OBS/broadcast
+  rtmpUrl       String? // URL RTMP del ingest de Mux
+  isLive        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets    Ticket[]
+  recordings Recording[]
+
+  @@map("events")
+}
+
+model Ticket {
+  id        String @id @default(uuid())
+  userId    String
+  eventId   String
+
+  // QR payload: JSON firmado con HMAC-SHA256
+  // Contiene: ticketId, userId, eventId, expiresAt, issuedAt
+  qrPayload String   @unique
+
+  used       Boolean   @default(false)
+  usedAt     DateTime?
+  scannedBy  String?   // userId del staff que escaneó
+
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@map("tickets")
+}
+
+model Recording {
+  id      String  @id @default(uuid())
+  eventId String?
+  title   String
+  description String?
+
+  // Mux Video on Demand
+  muxAssetId    String
+  muxPlaybackId String
+
+  duration     Int?    // segundos
+  thumbnailUrl String?
+
+  isPublic             Boolean @default(false)
+  requiresSubscription Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@map("recordings")
+}
