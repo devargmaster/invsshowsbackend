@@ -18,8 +18,9 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# Instalar TODAS las deps (incluyendo devDeps para tener @nestjs/cli)
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 COPY . .
 RUN npx prisma generate
@@ -32,10 +33,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY --from=build /app/node_modules ./node_modules
+# Solo instalar deps de producción en la imagen final
+COPY package*.json ./
+RUN npm ci --only=production
+
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/package.json ./
 
 RUN npx prisma generate
 
