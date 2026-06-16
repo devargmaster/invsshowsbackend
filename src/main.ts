@@ -19,7 +19,7 @@ async function bootstrap() {
   // ── Security ─────────────────────────────────────────────────────
   app.use(helmet());
   app.enableCors({
-    origin: corsOrigins,
+    origin: true,
     credentials: true,
   });
   app.use(cookieParser());
