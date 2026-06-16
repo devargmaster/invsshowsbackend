@@ -22,6 +22,6 @@ RUN npm run build
 RUN ls -la dist/ && test -f dist/main.js
 
 ENV NODE_ENV=production
-EXPOSE 3000
+EXPOSE 8080
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
