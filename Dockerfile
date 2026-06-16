@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Instalar OpenSSL requerido por Prisma en Alpine
+RUN apk add --no-cache openssl
+
 # Copiar manifests y schema de Prisma
 COPY package*.json ./
 COPY prisma ./prisma/
