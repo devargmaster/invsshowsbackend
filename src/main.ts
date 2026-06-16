@@ -63,8 +63,8 @@ async function bootstrap() {
     logger.log(`Swagger disponible en: http://localhost:${port}/docs`);
   }
 
-  await app.listen(port);
-  logger.log(`🚀 INVS API corriendo en: http://localhost:${port}/api/v1`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`🚀 INVS API corriendo en: puerto ${port} (0.0.0.0)/api/v1`);
   logger.log(`Entorno: ${nodeEnv}`);
 }
 
