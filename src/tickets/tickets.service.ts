@@ -127,30 +127,36 @@ export class TicketsService {
       throw new BadRequestException('QR vencido.');
     }
 
-    // 4. Buscar el ticket en BD
-    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
-    if (!ticket) {
-      throw new NotFoundException('Ticket no encontrado en el sistema.');
-    }
-
-    // 5. Verificar reutilización
-    if (ticket.used) {
-      this.logger.warn(`Intento de reutilizar ticket: ${ticketId}, usado en: ${ticket.usedAt}`);
-      throw new ConflictException({
-        message: 'ACCESO DENEGADO: Este QR ya fue utilizado.',
-        usedAt: ticket.usedAt,
-        alert: true,
-      });
-    }
-
-    // 6. Marcar como usado
-    const updatedTicket = await this.prisma.ticket.update({
-      where: { id: ticketId },
+    // 4-6. Marcar como usado de forma ATOMICA: el chequeo "no usado" y el
+    // escritura van en la misma operación (WHERE used:false), asi que si
+    // dos scanners validan el mismo QR en simultaneo solo uno gana la carrera.
+    const { count } = await this.prisma.ticket.updateMany({
+      where: { id: ticketId, used: false },
       data: {
         used: true,
         usedAt: new Date(),
         scannedBy: scannedById,
       },
+    });
+
+    if (count === 0) {
+      // No se actualizo nada: o no existe, o ya estaba usado (por este
+      // mismo request o por otro que gano la carrera). Buscamos solo para
+      // dar el mensaje correcto, esto no afecta la atomicidad de arriba.
+      const existing = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+      if (!existing) {
+        throw new NotFoundException('Ticket no encontrado en el sistema.');
+      }
+      this.logger.warn(`Intento de reutilizar ticket: ${ticketId}, usado en: ${existing.usedAt}`);
+      throw new ConflictException({
+        message: 'ACCESO DENEGADO: Este QR ya fue utilizado.',
+        usedAt: existing.usedAt,
+        alert: true,
+      });
+    }
+
+    const updatedTicket = await this.prisma.ticket.findUniqueOrThrow({
+      where: { id: ticketId },
       include: {
         user: { select: { fullName: true, email: true } },
         event: { select: { title: true, date: true } },

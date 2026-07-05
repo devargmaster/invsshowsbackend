@@ -43,6 +43,12 @@ export class SubscriptionsService {
   async create(dto: CreateSubscriptionDto, requestingUserId: string, isAdmin: boolean) {
     const targetUserId = isAdmin && dto.userId ? dto.userId : requestingUserId;
 
+    // Solo un admin puede fijar el status directamente (ej: ACTIVE).
+    // Un usuario self-service NUNCA puede activarse solo: sin integración
+    // de pago real, queda en PENDING hasta que un admin (o, a futuro, un
+    // webhook de pago verificado) confirme la suscripción.
+    const status = isAdmin ? (dto.status ?? SubscriptionStatus.ACTIVE) : SubscriptionStatus.PENDING;
+
     // Verificar si ya tiene suscripción activa
     const existing = await this.prisma.subscription.findUnique({
       where: { userId: targetUserId },
@@ -57,7 +63,7 @@ export class SubscriptionsService {
         where: { id: existing.id },
         data: {
           planName: dto.planName,
-          status: dto.status ?? SubscriptionStatus.ACTIVE,
+          status,
           platform: dto.platform,
           externalId: dto.externalId,
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
@@ -70,7 +76,7 @@ export class SubscriptionsService {
       data: {
         userId: targetUserId,
         planName: dto.planName,
-        status: dto.status ?? SubscriptionStatus.ACTIVE,
+        status,
         platform: dto.platform,
         externalId: dto.externalId,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
