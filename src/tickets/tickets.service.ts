@@ -50,12 +50,12 @@ export class TicketsService {
       throw new UnauthorizedException('Necesitas una suscripción activa para obtener entradas.');
     }
 
-    // 3. Verificar que no tenga ya un ticket para este evento
+    // 3. Verificar que no tenga ya un ticket ACTIVO (no usado) para este evento
     const existingTicket = await this.prisma.ticket.findFirst({
-      where: { userId, eventId },
+      where: { userId, eventId, used: false },
     });
     if (existingTicket) {
-      throw new ConflictException('Ya tienes una entrada para este evento.');
+      throw new ConflictException('Ya tienes una entrada activa para este evento.');
     }
 
     // 4. Verificar capacidad
