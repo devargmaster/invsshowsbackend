@@ -3,18 +3,21 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
-  UnauthorizedException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { SubscriptionStatus } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
+import { AuthService } from '../auth/auth.service';
+import { TicketStatus, TicketTransferStatus } from '@prisma/client';
 import * as crypto from 'crypto';
+import { signQrPayload } from '../common/utils/qr-signer.util';
 
 interface QrData {
   ticketId: string;
-  userId: string;
   eventId: string;
+  categoryId: string;
   issuedAt: number;
   expiresAt: number;
   signature: string;
@@ -24,79 +27,31 @@ interface QrData {
 export class TicketsService {
   private readonly logger = new Logger(TicketsService.name);
   private readonly hmacSecret: string;
+  private readonly webBaseUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly mailService: MailService,
+    private readonly authService: AuthService,
   ) {
     this.hmacSecret = this.config.get<string>('qr.hmacSecret') ?? '';
+    this.webBaseUrl = this.config.get<string>('webBaseUrl') ?? '';
   }
 
-  // ─── Generar ticket QR ───────────────────────────────────────────
-  async create(userId: string, eventId: string) {
-    // 1. Verificar que el evento existe y está publicado
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new NotFoundException('Evento no encontrado.');
-    if (event.status !== 'PUBLISHED') {
-      throw new BadRequestException('El evento no está disponible para reservas.');
-    }
-    if (event.mode === 'STREAMING') {
-      throw new BadRequestException('Este evento es solo streaming, no requiere ticket presencial.');
-    }
-
-    // 2. Verificar suscripción activa
-    const subscription = await this.prisma.subscription.findUnique({ where: { userId } });
-    if (!subscription || subscription.status !== SubscriptionStatus.ACTIVE) {
-      throw new UnauthorizedException('Necesitas una suscripción activa para obtener entradas.');
-    }
-
-    // 3. Verificar que no tenga ya un ticket ACTIVO (no usado) para este evento
-    const existingTicket = await this.prisma.ticket.findFirst({
-      where: { userId, eventId, used: false },
-    });
-    if (existingTicket) {
-      throw new ConflictException('Ya tienes una entrada activa para este evento.');
-    }
-
-    // 4. Verificar capacidad
-    if (event.maxCapacity) {
-      const ticketCount = await this.prisma.ticket.count({ where: { eventId } });
-      if (ticketCount >= event.maxCapacity) {
-        throw new BadRequestException('El evento está lleno.');
-      }
-    }
-
-    // 5. Generar el ticket ID y payload firmado
-    const ticketId = crypto.randomUUID();
-    const issuedAt = Date.now();
-    // QR válido hasta la fecha del evento + 4 horas
-    const expiresAt = new Date(event.date).getTime() + 4 * 60 * 60 * 1000;
-
-    const payload = { ticketId, userId, eventId, issuedAt, expiresAt };
-    const signature = this.sign(payload);
-    const qrPayload = JSON.stringify({ ...payload, signature });
-
-    // 6. Guardar en BD
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        id: ticketId,
-        userId,
-        eventId,
-        qrPayload,
-        expiresAt: new Date(expiresAt),
-      },
-    });
-
-    this.logger.log(`Ticket generado: ${ticketId} para evento ${eventId} por usuario ${userId}`);
-    return ticket;
-  }
-
-  // ─── Mis tickets ─────────────────────────────────────────────────
+  // ─── Mis entradas: propias + sin asignar de mis compras ─────────
   async findMyTickets(userId: string) {
     return this.prisma.ticket.findMany({
-      where: { userId },
+      where: {
+        OR: [
+          { holderUserId: userId },
+          { holderUserId: null, purchaserUserId: userId },
+        ],
+      },
       include: {
         event: { select: { id: true, title: true, date: true, location: true, mode: true } },
+        category: true,
+        transfers: { where: { status: TicketTransferStatus.PENDING } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -106,92 +61,255 @@ export class TicketsService {
   async validate(rawQrPayload: string, scannedById: string) {
     let qrData: QrData;
 
-    // 1. Parsear el JSON del QR
     try {
       qrData = JSON.parse(rawQrPayload) as QrData;
     } catch {
       throw new BadRequestException('QR inválido: formato incorrecto.');
     }
 
-    const { ticketId, userId, eventId, issuedAt, expiresAt, signature } = qrData;
+    const { ticketId, eventId, categoryId, issuedAt, expiresAt, signature } = qrData;
 
-    // 2. Verificar firma HMAC
-    const expectedSignature = this.sign({ ticketId, userId, eventId, issuedAt, expiresAt });
+    const expectedSignature = signQrPayload({ ticketId, eventId, categoryId, issuedAt, expiresAt }, this.hmacSecret);
     if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
       this.logger.warn(`Intento de QR con firma inválida: ticketId=${ticketId}`);
       throw new BadRequestException('QR inválido: firma no coincide.');
     }
 
-    // 3. Verificar que no haya expirado
     if (Date.now() > expiresAt) {
       throw new BadRequestException('QR vencido.');
     }
 
-    // 4-6. Marcar como usado de forma ATOMICA: el chequeo "no usado" y el
-    // escritura van en la misma operación (WHERE used:false), asi que si
-    // dos scanners validan el mismo QR en simultaneo solo uno gana la carrera.
+    // Chequeo "activo" + marcado "usado" en una sola operación atómica: si
+    // dos scanners validan el mismo QR en simultáneo, solo uno gana la carrera.
     const { count } = await this.prisma.ticket.updateMany({
-      where: { id: ticketId, used: false },
-      data: {
-        used: true,
-        usedAt: new Date(),
-        scannedBy: scannedById,
-      },
+      where: { id: ticketId, status: TicketStatus.ACTIVE },
+      data: { status: TicketStatus.USED, usedAt: new Date(), scannedBy: scannedById },
     });
 
     if (count === 0) {
-      // No se actualizo nada: o no existe, o ya estaba usado (por este
-      // mismo request o por otro que gano la carrera). Buscamos solo para
-      // dar el mensaje correcto, esto no afecta la atomicidad de arriba.
       const existing = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
       if (!existing) {
         throw new NotFoundException('Ticket no encontrado en el sistema.');
       }
-      this.logger.warn(`Intento de reutilizar ticket: ${ticketId}, usado en: ${existing.usedAt}`);
-      throw new ConflictException({
-        message: 'ACCESO DENEGADO: Este QR ya fue utilizado.',
-        usedAt: existing.usedAt,
-        alert: true,
-      });
+      if (existing.status === TicketStatus.USED) {
+        this.logger.warn(`Intento de reutilizar ticket: ${ticketId}, usado en: ${existing.usedAt}`);
+        throw new ConflictException({
+          message: 'ACCESO DENEGADO: Este QR ya fue utilizado.',
+          usedAt: existing.usedAt,
+          alert: true,
+        });
+      }
+      throw new BadRequestException(`Este ticket no está activo (estado: ${existing.status}).`);
     }
 
     const updatedTicket = await this.prisma.ticket.findUniqueOrThrow({
       where: { id: ticketId },
       include: {
-        user: { select: { fullName: true, email: true } },
+        holder: { select: { fullName: true, email: true } },
+        purchaser: { select: { fullName: true, email: true } },
         event: { select: { title: true, date: true } },
       },
     });
 
-    this.logger.log(`Acceso validado: ticket=${ticketId}, usuario=${userId}, evento=${eventId}`);
+    const attendee = updatedTicket.holder?.fullName ?? updatedTicket.purchaser.fullName;
+
+    this.logger.log(`Acceso validado: ticket=${ticketId}, evento=${eventId}`);
     return {
       valid: true,
       message: 'ACCESO PERMITIDO ✓',
       ticket: {
         id: updatedTicket.id,
-        attendee: updatedTicket.user.fullName,
+        attendee,
         event: updatedTicket.event.title,
         validatedAt: updatedTicket.usedAt,
       },
     };
   }
 
-  // ─── Admin: todos los tickets de un evento ──────────────────────
+  // ─── Admin/Staff: todas las entradas de un evento ───────────────
   async findByEvent(eventId: string) {
     return this.prisma.ticket.findMany({
       where: { eventId },
       include: {
-        user: { select: { fullName: true, email: true } },
+        holder: { select: { fullName: true, email: true } },
+        purchaser: { select: { fullName: true, email: true } },
+        category: true,
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // ─── HMAC signing ────────────────────────────────────────────────
-  private sign(data: object): string {
-    return crypto
-      .createHmac('sha256', this.hmacSecret)
-      .update(JSON.stringify(data))
-      .digest('hex');
+  // ─── Compartir una entrada sin asignar por email ────────────────
+  async createTransfer(ticketId: string, fromUserId: string, toEmail: string) {
+    const normalizedEmail = toEmail.trim().toLowerCase();
+
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: { purchaser: true, event: true },
+    });
+    if (!ticket) throw new NotFoundException('Entrada no encontrada.');
+    if (ticket.purchaserUserId !== fromUserId) {
+      throw new ForbiddenException('No podés compartir una entrada que no compraste.');
+    }
+    if (ticket.status !== TicketStatus.ACTIVE) {
+      throw new BadRequestException('Esta entrada no está activa.');
+    }
+    if (ticket.holderUserId) {
+      throw new BadRequestException('Esta entrada ya está asignada.');
+    }
+    if (normalizedEmail === ticket.purchaser.email.toLowerCase()) {
+      throw new BadRequestException('No podés compartirte la entrada a vos mismo.');
+    }
+
+    const existingPending = await this.prisma.ticketTransfer.findFirst({
+      where: { ticketId, status: TicketTransferStatus.PENDING },
+    });
+    if (existingPending) {
+      throw new ConflictException(
+        'Ya hay un envío pendiente para esta entrada. Cancelalo antes de reenviar a otro email.',
+      );
+    }
+
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const transfer = await this.prisma.ticketTransfer.create({
+      data: { ticketId, fromUserId, toEmail: normalizedEmail, token, expiresAt },
+    });
+
+    this.mailService.sendTransferInvitation(
+      normalizedEmail,
+      ticket.purchaser.fullName,
+      ticket.event.title,
+      `${this.webBaseUrl}/transfers/${token}`,
+    );
+
+    return transfer;
+  }
+
+  // ─── Cancelar un envío pendiente ─────────────────────────────────
+  async cancelTransfer(transferId: string, userId: string) {
+    const transfer = await this.prisma.ticketTransfer.findUnique({
+      where: { id: transferId },
+      include: { ticket: { include: { event: true } } },
+    });
+    if (!transfer) throw new NotFoundException('Envío no encontrado.');
+    if (transfer.fromUserId !== userId) throw new ForbiddenException('No podés cancelar este envío.');
+    if (transfer.status !== TicketTransferStatus.PENDING) {
+      throw new BadRequestException('Este envío ya no está pendiente.');
+    }
+
+    const updated = await this.prisma.ticketTransfer.update({
+      where: { id: transferId },
+      data: { status: TicketTransferStatus.CANCELLED, cancelledAt: new Date() },
+    });
+
+    return updated;
+  }
+
+  // ─── Entradas que me compartieron, pendientes de aceptar ────────
+  async findIncomingTransfers(userEmail: string) {
+    return this.prisma.ticketTransfer.findMany({
+      where: { toEmail: userEmail.trim().toLowerCase(), status: TicketTransferStatus.PENDING },
+      include: {
+        ticket: { include: { event: true, category: true } },
+        fromUser: { select: { fullName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ─── Detalle público de una invitación (para la pantalla de aceptar) ─
+  async findTransferByToken(token: string) {
+    const transfer = await this.getValidPendingTransfer(token);
+    const recipientAccount = await this.prisma.user.findUnique({ where: { email: transfer.toEmail } });
+
+    return {
+      eventTitle: transfer.ticket.event.title,
+      categoryName: transfer.ticket.category.name,
+      fromUserName: transfer.fromUser.fullName,
+      toEmail: transfer.toEmail,
+      recipientHasAccount: !!recipientAccount,
+    };
+  }
+
+  // ─── Aceptar (ya con cuenta y sesión iniciada) ──────────────────
+  async acceptTransfer(token: string, currentUser: { id: string; email: string }) {
+    const transfer = await this.getValidPendingTransfer(token);
+
+    if (transfer.toEmail !== currentUser.email.trim().toLowerCase()) {
+      throw new ForbiddenException('Esta invitación es para otro email. Iniciá sesión con el email correcto.');
+    }
+
+    await this.completeAcceptance(transfer.id, transfer.ticketId, transfer.fromUserId, transfer.toEmail, currentUser.id);
+    return { success: true };
+  }
+
+  // ─── Registrarse con el email invitado y aceptar en un solo paso ─
+  async registerAndAcceptTransfer(token: string, fullName: string, password: string) {
+    const transfer = await this.getValidPendingTransfer(token);
+
+    const exists = await this.prisma.user.findUnique({ where: { email: transfer.toEmail } });
+    if (exists) {
+      throw new ConflictException('Ese email ya tiene una cuenta. Iniciá sesión para aceptar la entrada.');
+    }
+
+    const { user, accessToken, refreshToken } = await this.authService.register({
+      email: transfer.toEmail,
+      fullName,
+      password,
+    });
+
+    await this.completeAcceptance(transfer.id, transfer.ticketId, transfer.fromUserId, transfer.toEmail, user.id);
+
+    return { user, accessToken, refreshToken };
+  }
+
+  // ─── Helpers internos ────────────────────────────────────────────
+
+  private async getValidPendingTransfer(token: string) {
+    const transfer = await this.prisma.ticketTransfer.findUnique({
+      where: { token },
+      include: {
+        ticket: { include: { event: true, category: true } },
+        fromUser: { select: { fullName: true } },
+      },
+    });
+    if (!transfer) throw new NotFoundException('Invitación no encontrada.');
+    if (transfer.status !== TicketTransferStatus.PENDING) {
+      throw new BadRequestException('Esta invitación ya no está disponible.');
+    }
+    if (transfer.expiresAt < new Date()) {
+      await this.prisma.ticketTransfer.update({
+        where: { id: transfer.id },
+        data: { status: TicketTransferStatus.EXPIRED },
+      });
+      throw new BadRequestException('Esta invitación venció.');
+    }
+    return transfer;
+  }
+
+  private async completeAcceptance(
+    transferId: string,
+    ticketId: string,
+    fromUserId: string,
+    toEmail: string,
+    newHolderUserId: string,
+  ) {
+    await this.prisma.$transaction([
+      this.prisma.ticket.update({ where: { id: ticketId }, data: { holderUserId: newHolderUserId } }),
+      this.prisma.ticketTransfer.update({
+        where: { id: transferId },
+        data: { status: TicketTransferStatus.ACCEPTED, toUserId: newHolderUserId, acceptedAt: new Date() },
+      }),
+    ]);
+
+    const [ticket, fromUser] = await Promise.all([
+      this.prisma.ticket.findUnique({ where: { id: ticketId }, include: { event: true } }),
+      this.prisma.user.findUnique({ where: { id: fromUserId } }),
+    ]);
+    if (ticket && fromUser) {
+      this.mailService.sendTransferAccepted(fromUser.email, ticket.event.title, toEmail);
+    }
   }
 }

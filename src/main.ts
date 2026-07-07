@@ -1,7 +1,9 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { join } from 'path';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -9,7 +11,12 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Comprobantes de transferencia (./uploads) — servidos fuera del prefijo
+  // /api/v1. NOTA: disco local, en Railway es efímero; reemplazar por
+  // storage real (S3/Cloudinary) antes de depender de esto en producción.
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
 
   const config = app.get(ConfigService);
   const port = config.get<number>('port') ?? 3000;
@@ -54,6 +61,10 @@ async function bootstrap() {
       .addTag('Tickets / QR', 'Generación y validación de entradas QR')
       .addTag('Streaming', 'Streaming en vivo con Mux')
       .addTag('Recordings', 'Biblioteca de grabaciones')
+      .addTag('Ticket Categories', 'Categorías de entrada por evento (precio, aforo, horario propio)')
+      .addTag('Add-ons', 'Adicionales de la experiencia (remeras, cuadros, conmemorativos)')
+      .addTag('Orders', 'Compra de entradas: carrito, pago, transferencia')
+      .addTag('Payments', 'Webhooks de proveedores de pago')
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);

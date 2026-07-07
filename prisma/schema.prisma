@@ -40,6 +40,32 @@ enum SubscriptionStatus {
   PENDING
 }
 
+enum OrderStatus {
+  PENDING_PAYMENT // reserva de cupo activa, esperando pago o validación
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CARD_OPENPAY   // Openpay Argentina (BBVA) — docs.ecommercebbva.com
+  BANK_TRANSFER  // queda PENDING_PAYMENT hasta validación manual en backoffice
+}
+
+enum TicketStatus {
+  PENDING_PAYMENT // reserva capacidad, todavia no valido para ingresar
+  ACTIVE          // pago confirmado, QR generado
+  USED            // ya validado en la puerta
+  CANCELLED       // orden fallida/rechazada/vencida
+}
+
+enum TicketTransferStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+  EXPIRED
+}
+
 // ─────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────
@@ -56,7 +82,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   subscription Subscription?
-  tickets      Ticket[]
+
+  ordersAsBuyer     Order[]          @relation("OrderBuyer")
+  ordersValidated   Order[]          @relation("OrderValidator")
+  ticketsHeld       Ticket[]         @relation("TicketHolder")
+  ticketsPurchased  Ticket[]         @relation("TicketPurchaser")
+  transfersSent     TicketTransfer[] @relation("TransferSender")
+  transfersReceived TicketTransfer[] @relation("TransferRecipient")
 
   @@map("users")
 }
@@ -90,7 +122,7 @@ model Event {
   status      EventStatus @default(DRAFT)
 
   coverImageUrl String?
-  maxCapacity   Int?
+  maxCapacity   Int? // legacy: ya no se enforcea, la capacidad real vive en TicketCategory.maxCapacity
 
   // Streaming / Mux
   muxAssetId    String? // Asset ID de Mux (grabación/VOD)
@@ -105,31 +137,184 @@ model Event {
 
   tickets    Ticket[]
   recordings Recording[]
+  categories TicketCategory[]
+  addons     AddOn[]
+  orders     Order[]
 
   @@map("events")
 }
 
-model Ticket {
+// Categoria de entrada dentro de un evento: cada una puede tener su propio
+// horario de experiencia (ej VIP entra 2hs antes que General) y su propio
+// aforo (el limite de 50 simultaneos de Panda aplica ACA, por categoria,
+// no como tope global del evento).
+model TicketCategory {
+  id             String    @id @default(uuid())
+  eventId        String
+  name           String    // "VIP", "General", "Platea Alta"
+  description    String?
+  priceCents     Int
+  currency       String    @default("ARS")
+  maxCapacity    Int
+  reservedCount  Int       @default(0) // contador atomico: pending_payment + active + used
+  accessStartsAt DateTime? // hora de ingreso propia de esta categoria
+  accessEndsAt   DateTime?
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  tickets Ticket[]
+
+  @@map("ticket_categories")
+}
+
+// Catalogo de adicionales por evento (remera, cuadro dorado, conmemorativo).
+model AddOn {
+  id            String  @id @default(uuid())
+  eventId       String
+  name          String
+  description   String?
+  priceCents    Int
+  currency      String  @default("ARS")
+  hasVariants   Boolean @default(false) // true para remeras (talles)
+  maxStock      Int?
+  reservedStock Int     @default(0)
+  isActive      Boolean @default(true)
+  sortOrder     Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event       Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  variants    AddonVariant[]
+  orderAddons OrderAddon[]
+
+  @@map("addons")
+}
+
+model AddonVariant {
   id        String @id @default(uuid())
-  userId    String
-  eventId   String
+  addonId   String
+  label     String // "S", "M", "L", "XL"
+  sortOrder Int    @default(0)
 
-  // QR payload: JSON firmado con HMAC-SHA256
-  // Contiene: ticketId, userId, eventId, expiresAt, issuedAt
-  qrPayload String   @unique
+  addon       AddOn        @relation(fields: [addonId], references: [id], onDelete: Cascade)
+  orderAddons OrderAddon[]
 
-  used       Boolean   @default(false)
-  usedAt     DateTime?
-  scannedBy  String?   // userId del staff que escaneó
+  @@unique([addonId, label])
+  @@map("addon_variants")
+}
 
-  expiresAt DateTime
+// Una compra: agrupa N tickets (de una o mas categorias del MISMO evento)
+// + N adicionales. Reserva capacidad al crearse (aunque quede PENDING_PAYMENT).
+model Order {
+  id            String        @id @default(uuid())
+  buyerId       String
+  eventId       String
+  status        OrderStatus   @default(PENDING_PAYMENT)
+  paymentMethod PaymentMethod
+
+  subtotalCents Int
+  totalCents    Int
+  currency      String @default("ARS")
+
+  // Transferencia bancaria — validacion manual desde backoffice
+  transferProofUrl  String?
+  transferReference String?
+  validatedByUserId String?
+  validatedAt       DateTime?
+  rejectionReason   String?
+
+  // Openpay (BBVA Argentina)
+  openpayChargeId String?
+  paymentError    String?
+
+  expiresAt DateTime? // TTL del hold de capacidad
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer       User         @relation("OrderBuyer", fields: [buyerId], references: [id])
+  validatedBy User?        @relation("OrderValidator", fields: [validatedByUserId], references: [id])
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  tickets     Ticket[]
+  addons      OrderAddon[]
+
+  @@index([status, paymentMethod])
+  @@map("orders")
+}
+
+model OrderAddon {
+  id             String  @id @default(uuid())
+  orderId        String
+  addonId        String
+  variantId      String?
+  quantity       Int     @default(1)
+  unitPriceCents Int // snapshot del precio al momento de compra
+
+  order   Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  addon   AddOn         @relation(fields: [addonId], references: [id])
+  variant AddonVariant? @relation(fields: [variantId], references: [id])
+
+  @@map("order_addons")
+}
+
+model Ticket {
+  id              String       @id @default(uuid())
+  orderId         String
+  categoryId      String
+  eventId         String // denormalizado (debe == category.eventId), para queries simples
+  holderUserId    String? // null hasta asignarse (entrada sin repartir / transferencia pendiente)
+  purchaserUserId String // quien pago la orden
+
+  status TicketStatus @default(PENDING_PAYMENT)
+
+  // QR payload: JSON firmado con HMAC-SHA256, generado recien cuando status=ACTIVE
+  // Contiene: ticketId, eventId, categoryId, issuedAt, expiresAt (SIN holder,
+  // para que sobreviva a una transferencia posterior sin invalidarse)
+  qrPayload String?   @unique
+  usedAt    DateTime?
+  scannedBy String?   // userId del staff que escaneó
+  expiresAt DateTime?
 
   createdAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id])
-  event Event @relation(fields: [eventId], references: [id])
+  order     Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  category  TicketCategory   @relation(fields: [categoryId], references: [id])
+  event     Event            @relation(fields: [eventId], references: [id])
+  holder    User?            @relation("TicketHolder", fields: [holderUserId], references: [id])
+  purchaser User             @relation("TicketPurchaser", fields: [purchaserUserId], references: [id])
+  transfers TicketTransfer[]
 
   @@map("tickets")
+}
+
+// Reenvio de una entrada por email, con doble confirmacion en el cliente y
+// aceptacion del lado del destinatario (con registro inline si no tiene cuenta).
+model TicketTransfer {
+  id          String               @id @default(uuid())
+  ticketId    String
+  fromUserId  String
+  toEmail     String // normalizado lowercase+trim
+  toUserId    String? // se completa al aceptar
+  status      TicketTransferStatus @default(PENDING)
+  token       String               @unique // token opaco para el link del mail
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromUser User   @relation("TransferSender", fields: [fromUserId], references: [id])
+  toUser   User?  @relation("TransferRecipient", fields: [toUserId], references: [id])
+
+  @@index([ticketId, status])
+  @@map("ticket_transfers")
 }
 
 model Recording {

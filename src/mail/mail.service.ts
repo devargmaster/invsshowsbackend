@@ -1,0 +1,87 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { MailProviderFactory } from './providers/mail-provider.factory';
+
+function layout(title: string, bodyHtml: string): string {
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;background:#0B0B12;padding:32px 16px;">
+    <div style="max-width:480px;margin:0 auto;background:#13131F;border:1px solid #1E1E33;border-radius:16px;padding:28px;">
+      <div style="color:#A78BFA;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">INVS</div>
+      <h1 style="color:#F0F0F5;font-size:20px;margin:12px 0 16px;">${title}</h1>
+      <div style="color:#C4C4D4;font-size:14px;line-height:1.6;">${bodyHtml}</div>
+    </div>
+  </div>`;
+}
+
+function button(href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;margin-top:16px;background:linear-gradient(135deg,#A78BFA 0%,#7C3AED 100%);color:#fff;font-weight:700;text-decoration:none;padding:14px 22px;border-radius:12px;">${label}</a>`;
+}
+
+@Injectable()
+export class MailService {
+  private readonly logger = new Logger(MailService.name);
+
+  constructor(private readonly providerFactory: MailProviderFactory) {}
+
+  /** Fire-and-forget: un fallo de mail nunca debe abortar una operación ya confirmada en BD. */
+  private async safeSend(to: string, subject: string, html: string): Promise<void> {
+    try {
+      await this.providerFactory.getProvider().send({ to, subject, html });
+    } catch (err) {
+      this.logger.error(`Error enviando mail a ${to} (${subject}): ${(err as Error).message}`);
+    }
+  }
+
+  sendOrderConfirmation(to: string, eventTitle: string, ticketCount: number): void {
+    const html = layout(
+      '¡Compra confirmada!',
+      `<p>Tu compra para <b>${eventTitle}</b> fue confirmada.</p>
+       <p>Generamos <b>${ticketCount}</b> entrada(s). Entrá a la app en "Mis Entradas" para verlas y compartir las que no sean para vos.</p>`,
+    );
+    void this.safeSend(to, `Compra confirmada — ${eventTitle}`, html);
+  }
+
+  sendTransferInvitation(to: string, fromUserName: string, eventTitle: string, acceptUrl: string): void {
+    const html = layout(
+      'Te compartieron una entrada',
+      `<p><b>${fromUserName}</b> te compartió una entrada para <b>${eventTitle}</b>.</p>
+       <p>Si no tenés cuenta en INVS todavía, vas a poder crearla en el mismo paso.</p>
+       ${button(acceptUrl, 'Ver mi entrada')}
+       <p style="margin-top:16px;color:#8F8FA3;font-size:12px;">Este link vence en 7 días.</p>`,
+    );
+    void this.safeSend(to, `${fromUserName} te compartió una entrada — ${eventTitle}`, html);
+  }
+
+  sendTransferAccepted(to: string, eventTitle: string, recipientEmail: string): void {
+    const html = layout(
+      'Entrada aceptada',
+      `<p><b>${recipientEmail}</b> aceptó la entrada que le compartiste para <b>${eventTitle}</b>.</p>`,
+    );
+    void this.safeSend(to, `Tu entrada compartida fue aceptada — ${eventTitle}`, html);
+  }
+
+  sendTransferCancelled(to: string, eventTitle: string): void {
+    const html = layout(
+      'Envío de entrada cancelado',
+      `<p>Se canceló el envío de tu entrada pendiente para <b>${eventTitle}</b>. Podés volver a compartirla desde "Mis Entradas".</p>`,
+    );
+    void this.safeSend(to, `Envío de entrada cancelado — ${eventTitle}`, html);
+  }
+
+  sendTransferOrderApproved(to: string, eventTitle: string): void {
+    const html = layout(
+      '¡Pago aprobado!',
+      `<p>Validamos tu transferencia para <b>${eventTitle}</b>. Tus entradas ya están activas con su código QR.</p>`,
+    );
+    void this.safeSend(to, `Pago aprobado — ${eventTitle}`, html);
+  }
+
+  sendTransferOrderRejected(to: string, eventTitle: string, reason?: string): void {
+    const html = layout(
+      'No pudimos validar tu pago',
+      `<p>No pudimos validar la transferencia para <b>${eventTitle}</b>.</p>
+       ${reason ? `<p>Motivo: ${reason}</p>` : ''}
+       <p>Escribinos si creés que es un error.</p>`,
+    );
+    void this.safeSend(to, `Pago no validado — ${eventTitle}`, html);
+  }
+}

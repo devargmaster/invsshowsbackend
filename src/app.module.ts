@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
@@ -11,6 +12,11 @@ import { EventsModule } from './events/events.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { StreamingModule } from './streaming/streaming.module';
 import { RecordingsModule } from './recordings/recordings.module';
+import { CategoriesModule } from './categories/categories.module';
+import { AddonsModule } from './addons/addons.module';
+import { MailModule } from './mail/mail.module';
+import { PaymentsModule } from './payments/payments.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -32,6 +38,7 @@ import { RecordingsModule } from './recordings/recordings.module';
         limit: 10,    // 10 req/min por IP (login, register, refresh)
       },
     ]),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -40,6 +47,11 @@ import { RecordingsModule } from './recordings/recordings.module';
     TicketsModule,
     StreamingModule,
     RecordingsModule,
+    CategoriesModule,
+    AddonsModule,
+    MailModule,
+    PaymentsModule,
+    OrdersModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todas las rutas

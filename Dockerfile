@@ -12,6 +12,10 @@ COPY prisma ./prisma/
 # Instalar todas las deps (incluyendo devDeps para @nestjs/cli)
 RUN npm ci
 
+# Generar el cliente de Prisma explícitamente (no depender del postinstall
+# implícito) — asegura que coincida con el schema.prisma actual
+RUN npx prisma generate
+
 # Copiar código fuente
 COPY . .
 

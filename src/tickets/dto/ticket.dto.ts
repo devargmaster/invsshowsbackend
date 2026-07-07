@@ -1,12 +1,9 @@
 import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CreateTicketDto {
-  @ApiProperty({ example: 'evt-uuid-here', description: 'ID del evento para el que se genera el ticket' })
-  @IsString()
-  @IsNotEmpty()
-  eventId: string;
-}
+// La generación de tickets ya no vive acá: ahora se crean vía POST /orders
+// (carrito de categorías + adicionales + pago/transferencia). Este módulo
+// se enfoca en consultar, validar y transferir entradas ya emitidas.
 
 export class ValidateTicketDto {
   @ApiProperty({ description: 'El JSON completo escaneado del QR (qrPayload del ticket)' })

@@ -35,5 +35,9 @@ Thumbs.db
 # ─── Testing ──────────────────────────────────────────────────
 coverage/
 
+# ─── Archivos subidos por usuarios (comprobantes de transferencia) ────
+# El directorio se crea solo en runtime (ver orders/multer.config.ts)
+uploads/
+
 # ─── Docker ───────────────────────────────────────────────────
 # docker-compose.override.yml  # descomenta si usás overrides locales
