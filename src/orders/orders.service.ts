@@ -31,6 +31,17 @@ export class OrdersService {
     this.hmacSecret = this.config.get<string>('qr.hmacSecret') ?? '';
   }
 
+  // ─── Datos bancarios para mostrar en el checkout (público) ──────
+  getBankTransferInfo() {
+    return {
+      bankName: this.config.get<string>('bankTransfer.bankName'),
+      accountHolder: this.config.get<string>('bankTransfer.accountHolder'),
+      cbu: this.config.get<string>('bankTransfer.cbu'),
+      alias: this.config.get<string>('bankTransfer.alias'),
+      cuit: this.config.get<string>('bankTransfer.cuit'),
+    };
+  }
+
   // ─── Crear orden: reserva capacidad de forma atómica ────────────
   async create(buyerId: string, dto: CreateOrderDto) {
     const event = await this.prisma.event.findUnique({ where: { id: dto.eventId } });

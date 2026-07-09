@@ -23,6 +23,12 @@ export class OrdersController {
 
   constructor(private readonly ordersService: OrdersService) {}
 
+  @Get('bank-transfer-info')
+  @ApiOperation({ summary: 'Datos bancarios a mostrar en el checkout por transferencia (público)' })
+  getBankTransferInfo() {
+    return this.ordersService.getBankTransferInfo();
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Crear una orden (carrito de categorías + adicionales), reserva capacidad' })
