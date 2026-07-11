@@ -51,7 +51,12 @@ export class TicketsService {
       include: {
         event: { select: { id: true, title: true, date: true, location: true, mode: true } },
         category: true,
-        transfers: { where: { status: TicketTransferStatus.PENDING } },
+        // Solo envíos pendientes vigentes: los vencidos se marcan EXPIRED de
+        // forma perezosa (al abrir el link), así que además filtramos por
+        // fecha para que el "pendiente de aceptar" desaparezca solo.
+        transfers: {
+          where: { status: TicketTransferStatus.PENDING, expiresAt: { gt: new Date() } },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -168,9 +173,18 @@ export class TicketsService {
       where: { ticketId, status: TicketTransferStatus.PENDING },
     });
     if (existingPending) {
-      throw new ConflictException(
-        'Ya hay un envío pendiente para esta entrada. Cancelalo antes de reenviar a otro email.',
-      );
+      if (existingPending.expiresAt < new Date()) {
+        // Vencida: se marca EXPIRED acá (expiración perezosa, igual que al
+        // abrir el link) y se permite compartir de nuevo.
+        await this.prisma.ticketTransfer.update({
+          where: { id: existingPending.id },
+          data: { status: TicketTransferStatus.EXPIRED },
+        });
+      } else {
+        throw new ConflictException(
+          'Ya hay un envío pendiente para esta entrada. Cancelalo antes de reenviar a otro email.',
+        );
+      }
     }
 
     const token = crypto.randomUUID();
