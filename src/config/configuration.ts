@@ -63,7 +63,7 @@ export default () => ({
   },
 
   mail: {
-    provider: process.env.MAIL_PROVIDER ?? 'smtp', // 'smtp' | 'console'
+    provider: process.env.MAIL_PROVIDER ?? 'smtp', // 'resend' | 'smtp' | 'console'
     fromEmail: process.env.FROM_EMAIL ?? 'no-reply@invs.app',
     fromName: process.env.FROM_NAME ?? 'INVS',
     smtp: {
@@ -72,6 +72,11 @@ export default () => ({
       secure: process.env.SMTP_SECURE === 'true',
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
+    },
+    resend: {
+      // API HTTP de Resend (puerto 443) — más confiable que SMTP desde
+      // hostings cloud, donde los puertos 465/587 suelen dar timeouts.
+      apiKey: process.env.RESEND_API_KEY,
     },
   },
 });

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SmtpProvider } from './smtp.provider';
 import { ConsoleProvider } from './console.provider';
+import { ResendProvider } from './resend.provider';
 import type { IMailProvider, MailProviderType } from './mail-provider.interface';
 
 /**
@@ -17,6 +18,7 @@ export class MailProviderFactory {
     private readonly config: ConfigService,
     private readonly smtpProvider: SmtpProvider,
     private readonly consoleProvider: ConsoleProvider,
+    private readonly resendProvider: ResendProvider,
   ) {
     const selected = (
       this.config.get<string>('mail.provider') ?? 'smtp'
@@ -25,6 +27,9 @@ export class MailProviderFactory {
     switch (selected) {
       case 'console':
         this.provider = this.consoleProvider;
+        break;
+      case 'resend':
+        this.provider = this.resendProvider;
         break;
       case 'smtp':
       default:

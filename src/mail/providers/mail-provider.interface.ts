@@ -4,7 +4,7 @@
  * y registrarla en MailProviderFactory. Mismo patrón que streaming/providers.
  */
 
-export type MailProviderType = 'smtp' | 'console';
+export type MailProviderType = 'resend' | 'smtp' | 'console';
 
 export interface MailAttachment {
   filename: string;
