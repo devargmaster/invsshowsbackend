@@ -139,7 +139,7 @@ export class TicketsService {
     });
   }
 
-  // ─── Compartir una entrada sin asignar por email ────────────────
+  // ─── Compartir una entrada por email ─────────────────────────────
   async createTransfer(ticketId: string, fromUserId: string, toEmail: string) {
     const normalizedEmail = toEmail.trim().toLowerCase();
 
@@ -154,8 +154,11 @@ export class TicketsService {
     if (ticket.status !== TicketStatus.ACTIVE) {
       throw new BadRequestException('Esta entrada no está activa.');
     }
-    if (ticket.holderUserId) {
-      throw new BadRequestException('Esta entrada ya está asignada.');
+    // Vale compartir una entrada sin asignar o asignada a uno mismo (ej:
+    // compré una sola entrada pero al evento va otra persona). Solo se
+    // bloquea si ya la tiene otra persona.
+    if (ticket.holderUserId && ticket.holderUserId !== fromUserId) {
+      throw new BadRequestException('Esta entrada ya está asignada a otra persona.');
     }
     if (normalizedEmail === ticket.purchaser.email.toLowerCase()) {
       throw new BadRequestException('No podés compartirte la entrada a vos mismo.');
