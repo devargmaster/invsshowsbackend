@@ -12,8 +12,11 @@ export class ConsoleProvider implements IMailProvider {
   private readonly logger = new Logger(ConsoleProvider.name);
 
   async send(input: SendMailInput): Promise<void> {
+    const adjuntos = input.attachments?.length
+      ? ` | Adjuntos: ${input.attachments.map((a) => a.filename).join(', ')}`
+      : '';
     this.logger.log(
-      `[MAIL:console] Para: ${input.to} | Asunto: ${input.subject}\n${input.text ?? input.html}`,
+      `[MAIL:console] Para: ${input.to} | Asunto: ${input.subject}${adjuntos}\n${input.text ?? input.html}`,
     );
   }
 }

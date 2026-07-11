@@ -48,6 +48,7 @@ export class SmtpProvider implements IMailProvider {
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments,
     });
     this.logger.log(`Mail enviado a ${input.to}: ${input.subject}`);
   }

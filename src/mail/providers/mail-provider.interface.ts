@@ -6,11 +6,20 @@
 
 export type MailProviderType = 'smtp' | 'console';
 
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+  /** Para incrustar la imagen en el HTML con <img src="cid:..."> */
+  cid?: string;
+}
+
 export interface SendMailInput {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: MailAttachment[];
 }
 
 export interface IMailProvider {

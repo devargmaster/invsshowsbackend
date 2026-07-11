@@ -145,7 +145,7 @@ export class TicketsService {
 
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: ticketId },
-      include: { purchaser: true, event: true },
+      include: { purchaser: true, event: true, category: true },
     });
     if (!ticket) throw new NotFoundException('Entrada no encontrada.');
     if (ticket.purchaserUserId !== fromUserId) {
@@ -185,6 +185,12 @@ export class TicketsService {
       ticket.purchaser.fullName,
       ticket.event.title,
       `${this.webBaseUrl}/transfers/${token}`,
+      {
+        qrPayload: ticket.qrPayload,
+        eventDate: ticket.event.date,
+        eventLocation: ticket.event.location,
+        categoryName: ticket.category?.name ?? null,
+      },
     );
 
     return transfer;
