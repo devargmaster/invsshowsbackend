@@ -9,6 +9,12 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
 
+  google: {
+    // Mismo Client ID se usa del lado del cliente (web/mobile) como
+    // audience esperado al verificar el idToken — no es secreto.
+    clientId: process.env.GOOGLE_CLIENT_ID,
+  },
+
   qr: {
     hmacSecret: process.env.QR_HMAC_SECRET,
   },

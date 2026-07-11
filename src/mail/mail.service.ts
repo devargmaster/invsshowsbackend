@@ -84,4 +84,22 @@ export class MailService {
     );
     void this.safeSend(to, `Pago no validado — ${eventTitle}`, html);
   }
+
+  sendContentPurchaseApproved(to: string, contentTitle: string): void {
+    const html = layout(
+      '¡Pago aprobado!',
+      `<p>Validamos tu compra de <b>${contentTitle}</b>. Ya lo podés ver desde la sección Streaming.</p>`,
+    );
+    void this.safeSend(to, `Pago aprobado — ${contentTitle}`, html);
+  }
+
+  sendContentPurchaseRejected(to: string, contentTitle: string, reason?: string): void {
+    const html = layout(
+      'No pudimos validar tu pago',
+      `<p>No pudimos validar la transferencia para <b>${contentTitle}</b>.</p>
+       ${reason ? `<p>Motivo: ${reason}</p>` : ''}
+       <p>Escribinos si creés que es un error.</p>`,
+    );
+    void this.safeSend(to, `Pago no validado — ${contentTitle}`, html);
+  }
 }

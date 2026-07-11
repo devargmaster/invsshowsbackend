@@ -1,5 +1,5 @@
 import {
-  IsString, IsNotEmpty, IsOptional, IsInt, IsBoolean, IsUrl,
+  IsString, IsNotEmpty, IsOptional, IsInt, IsBoolean, IsUrl, Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -39,13 +39,25 @@ export class CreateRecordingDto {
   @IsUrl()
   thumbnailUrl?: string;
 
-  @ApiPropertyOptional({ default: false, description: 'Si es público (sin suscripción)' })
+  // ─── Acceso combinable — ver ContentAccessService ─────────────────────
+  @ApiPropertyOptional({ default: false, description: 'Si es gratis para cualquier usuario logueado' })
   @IsOptional()
   @IsBoolean()
-  isPublic?: boolean;
+  isFree?: boolean;
 
-  @ApiPropertyOptional({ default: true })
+  @ApiPropertyOptional({ default: true, description: 'Si una suscripción activa da acceso' })
   @IsOptional()
   @IsBoolean()
-  requiresSubscription?: boolean;
+  includedInSubscription?: boolean;
+
+  @ApiPropertyOptional({ description: 'Precio en centavos para comprar suelto; si no se manda, no se vende suelto' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  priceCents?: number;
+
+  @ApiPropertyOptional({ default: 'ARS' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
 }

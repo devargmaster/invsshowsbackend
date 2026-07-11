@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { ContentAccessService } from '../common/services/content-access.service';
 import { CreateRecordingDto } from './dto/create-recording.dto';
+import { UpdateRecordingDto } from './dto/update-recording.dto';
 import Mux from '@mux/mux-node';
 
 @Injectable()
@@ -12,6 +14,7 @@ export class RecordingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly contentAccess: ContentAccessService,
   ) {
     this.mux = new Mux({
       tokenId: this.config.get<string>('mux.tokenId') ?? '',
@@ -20,59 +23,44 @@ export class RecordingsService {
     this.signedUrlTtl = this.config.get<number>('mux.signedUrlTtl') ?? 3600;
   }
 
-  async findAll(isAdmin = false) {
-    const where = isAdmin ? {} : { status: 'PUBLISHED' };
-    return this.prisma.recording.findMany({
-      where: isAdmin ? undefined : { requiresSubscription: false },
+  /**
+   * Listado para el Hub de streaming — cualquier usuario logueado puede
+   * VER el catálogo (el guard de acceso real solo aplica al endpoint de
+   * token, que reproduce el contenido). Cada item trae `granted` +
+   * `availableAccess` calculado para el usuario que pide el listado, así
+   * el frontend pinta el botón correcto sin pegarle al endpoint de token.
+   */
+  async findAllForUser(userId: string) {
+    const recordings = await this.prisma.recording.findMany({
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        duration: true,
-        thumbnailUrl: true,
-        isPublic: true,
-        requiresSubscription: true,
-        createdAt: true,
-        event: { select: { id: true, title: true, date: true } },
-      },
+      include: { event: { select: { id: true, title: true, date: true } } },
     });
+    return Promise.all(
+      recordings.map(async (r) => ({
+        ...r,
+        ...(await this.contentAccess.checkRecordingAccess(userId, r)),
+      })),
+    );
   }
 
-  async findAllForSubscriber() {
-    return this.prisma.recording.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        duration: true,
-        thumbnailUrl: true,
-        createdAt: true,
-        event: { select: { id: true, title: true, date: true } },
-      },
-    });
-  }
-
-  /** Obtiene grabaciones vinculadas a un evento específico */
-  async findByEventId(eventId: string) {
-    return this.prisma.recording.findMany({
+  /** Grabaciones de un evento específico, con el mismo acceso calculado. */
+  async findByEventId(eventId: string, userId: string) {
+    const recordings = await this.prisma.recording.findMany({
       where: { eventId },
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        duration: true,
-        thumbnailUrl: true,
-        createdAt: true,
-      },
     });
+    return Promise.all(
+      recordings.map(async (r) => ({
+        ...r,
+        ...(await this.contentAccess.checkRecordingAccess(userId, r)),
+      })),
+    );
   }
 
   /**
    * Genera un token de playback temporal (signed JWT de Mux).
    * El cliente construye la URL: https://stream.mux.com/{playbackId}.m3u8?token={token}
+   * El control de acceso ya lo hizo ContentAccessGuard antes de llegar acá.
    */
   async getPlaybackToken(recordingId: string) {
     const recording = await this.prisma.recording.findUnique({
@@ -89,13 +77,18 @@ export class RecordingsService {
       playbackId: recording.muxPlaybackId,
       token,
       hlsUrl: `https://stream.mux.com/${recording.muxPlaybackId}.m3u8?token=${token}`,
-      // URL del thumbnail de Mux
       thumbnailUrl: `https://image.mux.com/${recording.muxPlaybackId}/thumbnail.jpg`,
     };
   }
 
   async create(dto: CreateRecordingDto) {
     return this.prisma.recording.create({ data: dto });
+  }
+
+  async update(id: string, dto: UpdateRecordingDto) {
+    const recording = await this.prisma.recording.findUnique({ where: { id } });
+    if (!recording) throw new NotFoundException('Grabación no encontrada.');
+    return this.prisma.recording.update({ where: { id }, data: dto });
   }
 
   async remove(id: string) {

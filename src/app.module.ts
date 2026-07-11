@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
@@ -17,6 +18,7 @@ import { AddonsModule } from './addons/addons.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OrdersModule } from './orders/orders.module';
+import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
 
 @Module({
   imports: [
@@ -40,6 +42,7 @@ import { OrdersModule } from './orders/orders.module';
     ]),
     ScheduleModule.forRoot(),
     PrismaModule,
+    CommonModule,
     AuthModule,
     UsersModule,
     SubscriptionsModule,
@@ -52,6 +55,7 @@ import { OrdersModule } from './orders/orders.module';
     MailModule,
     PaymentsModule,
     OrdersModule,
+    ContentPurchasesModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todas las rutas

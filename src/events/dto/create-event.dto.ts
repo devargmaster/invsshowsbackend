@@ -1,6 +1,6 @@
 import {
   IsString, IsNotEmpty, IsOptional, IsEnum,
-  IsDateString, IsInt, IsUrl, Min,
+  IsDateString, IsInt, IsUrl, Min, IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EventMode } from '@prisma/client';
@@ -39,4 +39,26 @@ export class CreateEventDto {
   @IsInt()
   @Min(1)
   maxCapacity?: number;
+
+  // ─── Acceso al streaming en vivo — combinable, ver ContentAccessService ───
+  @ApiPropertyOptional({ default: false, description: 'Si el vivo es gratis para cualquier usuario logueado' })
+  @IsOptional()
+  @IsBoolean()
+  liveIsFree?: boolean;
+
+  @ApiPropertyOptional({ default: true, description: 'Si una suscripción activa da acceso al vivo' })
+  @IsOptional()
+  @IsBoolean()
+  liveIncludedInSubscription?: boolean;
+
+  @ApiPropertyOptional({ description: 'Precio en centavos para comprar el vivo suelto (pay-per-view); si no se manda, no se vende suelto' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  livePriceCents?: number;
+
+  @ApiPropertyOptional({ default: 'ARS' })
+  @IsOptional()
+  @IsString()
+  liveCurrency?: string;
 }

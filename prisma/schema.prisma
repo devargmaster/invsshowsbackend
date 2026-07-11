@@ -15,9 +15,9 @@ datasource db {
 // ─────────────────────────────────────────
 
 enum UserRole {
-  USER   // Suscriptor normal
-  STAFF  // Personal de validación QR
-  ADMIN  // Administrador total
+  USER // Suscriptor normal
+  STAFF // Personal de validación QR
+  ADMIN // Administrador total
 }
 
 enum EventMode {
@@ -27,10 +27,10 @@ enum EventMode {
 }
 
 enum EventStatus {
-  DRAFT      // Borrador
-  PUBLISHED  // Publicado y visible
-  CANCELLED  // Cancelado
-  COMPLETED  // Finalizado
+  DRAFT // Borrador
+  PUBLISHED // Publicado y visible
+  CANCELLED // Cancelado
+  COMPLETED // Finalizado
 }
 
 enum SubscriptionStatus {
@@ -48,15 +48,15 @@ enum OrderStatus {
 }
 
 enum PaymentMethod {
-  CARD_OPENPAY   // Openpay Argentina (BBVA) — docs.ecommercebbva.com
-  BANK_TRANSFER  // queda PENDING_PAYMENT hasta validación manual en backoffice
+  CARD_OPENPAY // Openpay Argentina (BBVA) — docs.ecommercebbva.com
+  BANK_TRANSFER // queda PENDING_PAYMENT hasta validación manual en backoffice
 }
 
 enum TicketStatus {
   PENDING_PAYMENT // reserva capacidad, todavia no valido para ingresar
-  ACTIVE          // pago confirmado, QR generado
-  USED            // ya validado en la puerta
-  CANCELLED       // orden fallida/rechazada/vencida
+  ACTIVE // pago confirmado, QR generado
+  USED // ya validado en la puerta
+  CANCELLED // orden fallida/rechazada/vencida
 }
 
 enum TicketTransferStatus {
@@ -73,22 +73,25 @@ enum TicketTransferStatus {
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String? // nullable: cuentas creadas solo con Google no tienen contraseña
+  googleId     String?  @unique
   fullName     String
   role         UserRole @default(USER)
-  refreshToken String?  // Hashed refresh token
+  refreshToken String? // Hashed refresh token
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   subscription Subscription?
 
-  ordersAsBuyer     Order[]          @relation("OrderBuyer")
-  ordersValidated   Order[]          @relation("OrderValidator")
-  ticketsHeld       Ticket[]         @relation("TicketHolder")
-  ticketsPurchased  Ticket[]         @relation("TicketPurchaser")
-  transfersSent     TicketTransfer[] @relation("TransferSender")
-  transfersReceived TicketTransfer[] @relation("TransferRecipient")
+  ordersAsBuyer             Order[]           @relation("OrderBuyer")
+  ordersValidated           Order[]           @relation("OrderValidator")
+  ticketsHeld               Ticket[]          @relation("TicketHolder")
+  ticketsPurchased          Ticket[]          @relation("TicketPurchaser")
+  transfersSent             TicketTransfer[]  @relation("TransferSender")
+  transfersReceived         TicketTransfer[]  @relation("TransferRecipient")
+  contentPurchases          ContentPurchase[] @relation("ContentPurchaseBuyer")
+  contentPurchasesValidated ContentPurchase[] @relation("ContentPurchaseValidator")
 
   @@map("users")
 }
@@ -96,10 +99,10 @@ model User {
 model Subscription {
   id         String             @id @default(uuid())
   userId     String             @unique
-  planName   String             // "basic", "premium", etc.
+  planName   String // "basic", "premium", etc.
   status     SubscriptionStatus @default(ACTIVE)
-  platform   String?            // "ios", "android", "web", "manual"
-  externalId String?            // Apple/Google transaction ID
+  platform   String? // "ios", "android", "web", "manual"
+  externalId String? // Apple/Google transaction ID
 
   startsAt  DateTime  @default(now())
   expiresAt DateTime? // null = sin vencimiento
@@ -132,14 +135,23 @@ model Event {
   rtmpUrl       String? // URL RTMP del ingest de Mux
   isLive        Boolean @default(false)
 
+  // Acceso al streaming en vivo de este evento — combinable, igual que en
+  // Recording: puede ser gratis, incluido en suscripción, y/o comprable
+  // suelto (pay-per-view), todo a la vez.
+  liveIsFree                 Boolean @default(false)
+  liveIncludedInSubscription Boolean @default(true)
+  livePriceCents             Int?
+  liveCurrency               String  @default("ARS")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tickets    Ticket[]
-  recordings Recording[]
-  categories TicketCategory[]
-  addons     AddOn[]
-  orders     Order[]
+  tickets          Ticket[]
+  recordings       Recording[]
+  categories       TicketCategory[]
+  addons           AddOn[]
+  orders           Order[]
+  contentPurchases ContentPurchase[]
 
   @@map("events")
 }
@@ -151,7 +163,7 @@ model Event {
 model TicketCategory {
   id             String    @id @default(uuid())
   eventId        String
-  name           String    // "VIP", "General", "Platea Alta"
+  name           String // "VIP", "General", "Platea Alta"
   description    String?
   priceCents     Int
   currency       String    @default("ARS")
@@ -264,7 +276,7 @@ model OrderAddon {
 }
 
 model Ticket {
-  id              String       @id @default(uuid())
+  id              String  @id @default(uuid())
   orderId         String
   categoryId      String
   eventId         String // denormalizado (debe == category.eventId), para queries simples
@@ -278,7 +290,7 @@ model Ticket {
   // para que sobreviva a una transferencia posterior sin invalidarse)
   qrPayload String?   @unique
   usedAt    DateTime?
-  scannedBy String?   // userId del staff que escaneó
+  scannedBy String? // userId del staff que escaneó
   expiresAt DateTime?
 
   createdAt DateTime @default(now())
@@ -318,25 +330,71 @@ model TicketTransfer {
 }
 
 model Recording {
-  id      String  @id @default(uuid())
-  eventId String?
-  title   String
+  id          String  @id @default(uuid())
+  eventId     String?
+  title       String
   description String?
 
   // Mux Video on Demand
   muxAssetId    String
   muxPlaybackId String
 
-  duration     Int?    // segundos
+  duration     Int? // segundos
   thumbnailUrl String?
 
-  isPublic             Boolean @default(false)
-  requiresSubscription Boolean @default(true)
+  // Acceso combinable — no son excluyentes entre sí: un video puede ser
+  // gratis, y/o estar incluido en la suscripción, y/o venderse suelto
+  // (si priceCents tiene valor). Reemplaza los viejos isPublic/
+  // requiresSubscription (a medio cablear, nunca se leían realmente).
+  isFree                 Boolean @default(false)
+  includedInSubscription Boolean @default(true)
+  priceCents             Int?
+  currency               String  @default("ARS")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  event            Event?            @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  contentPurchases ContentPurchase[]
 
   @@map("recordings")
+}
+
+// Compra individual de contenido (grabación o acceso en vivo pay-per-view),
+// separado de Order (que es para entradas de evento con cupo/categorías).
+// Mismo espíritu de pago/validación que Order, sin reserva de aforo.
+// Exactamente uno de recordingId/eventId debe estar seteado — se enforcea
+// con un CHECK agregado a mano en la migración (Prisma no lo soporta en
+// el DSL), ver migración `contenido_streaming_comprable_y_google_login`.
+model ContentPurchase {
+  id            String        @id @default(uuid())
+  userId        String
+  recordingId   String?
+  eventId       String? // compra de acceso en vivo (pay-per-view)
+  status        OrderStatus
+  paymentMethod PaymentMethod
+  priceCents    Int
+  currency      String        @default("ARS")
+
+  transferProofUrl  String?
+  transferReference String?
+  validatedByUserId String?
+  validatedAt       DateTime?
+  rejectionReason   String?
+
+  openpayChargeId String?
+  paymentError    String?
+
+  expiresAt DateTime?
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation("ContentPurchaseBuyer", fields: [userId], references: [id])
+  validator User?      @relation("ContentPurchaseValidator", fields: [validatedByUserId], references: [id])
+  recording Recording? @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("content_purchases")
 }

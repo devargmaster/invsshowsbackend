@@ -6,8 +6,9 @@ import { Request } from 'express';
 import { StreamingService } from './streaming.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { SubscriptionGuard } from '../common/guards/subscription.guard';
+import { ContentAccessGuard } from '../common/guards/content-access.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { ContentTarget } from '../common/decorators/content-target.decorator';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Streaming')
@@ -17,8 +18,9 @@ export class StreamingController {
 
   @Get(':eventId/token')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, SubscriptionGuard)
-  @ApiOperation({ summary: 'Obtener token de playback firmado para stream en vivo (requiere suscripción)' })
+  @UseGuards(JwtAuthGuard, ContentAccessGuard)
+  @ContentTarget('event', 'eventId')
+  @ApiOperation({ summary: 'Obtener token de playback firmado para stream en vivo (gratis, suscripción o compra)' })
   getLiveToken(@Param('eventId') eventId: string) {
     return this.streamingService.getLiveStreamToken(eventId);
   }

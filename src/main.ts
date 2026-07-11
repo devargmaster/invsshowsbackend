@@ -64,6 +64,7 @@ async function bootstrap() {
       .addTag('Ticket Categories', 'Categorías de entrada por evento (precio, aforo, horario propio)')
       .addTag('Add-ons', 'Adicionales de la experiencia (remeras, cuadros, conmemorativos)')
       .addTag('Orders', 'Compra de entradas: carrito, pago, transferencia')
+      .addTag('Content Purchases', 'Compra individual de contenido: grabaciones y vivo pay-per-view')
       .addTag('Payments', 'Webhooks de proveedores de pago')
       .build();
 
