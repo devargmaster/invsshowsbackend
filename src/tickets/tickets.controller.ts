@@ -41,6 +41,15 @@ export class TicketsController {
     return this.ticketsService.findByEvent(eventId);
   }
 
+  @Post('addons/:orderAddonId/redeem')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STAFF, UserRole.ADMIN)
+  @ApiOperation({ summary: '[Staff/Admin] Entregar una unidad de un adicional de la compra' })
+  redeemAddon(@Param('orderAddonId') orderAddonId: string) {
+    return this.ticketsService.redeemAddon(orderAddonId);
+  }
+
   // ── Compartir / transferir ───────────────────────────────────────
   @Post(':id/transfers')
   @ApiBearerAuth()

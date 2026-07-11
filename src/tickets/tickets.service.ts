@@ -113,10 +113,25 @@ export class TicketsService {
         holder: { select: { fullName: true, email: true } },
         purchaser: { select: { fullName: true, email: true } },
         event: { select: { title: true, date: true } },
+        order: {
+          include: { addons: { include: { addon: true, variant: true } } },
+        },
       },
     });
 
     const attendee = updatedTicket.holder?.fullName ?? updatedTicket.purchaser.fullName;
+
+    // Adicionales de la compra con unidades pendientes de entrega: los puede
+    // retirar quien entra con cualquier entrada de esa orden (no están
+    // personalizados). El staff los marca entregados desde el scanner.
+    const addons = updatedTicket.order.addons.map((a) => ({
+      id: a.id,
+      name: a.addon.name,
+      variant: a.variant?.label ?? null,
+      quantity: a.quantity,
+      redeemedCount: a.redeemedCount,
+      pending: a.quantity - a.redeemedCount,
+    }));
 
     this.logger.log(`Acceso validado: ticket=${ticketId}, evento=${eventId}`);
     return {
@@ -128,6 +143,37 @@ export class TicketsService {
         event: updatedTicket.event.title,
         validatedAt: updatedTicket.usedAt,
       },
+      addons,
+    };
+  }
+
+  // ─── Staff: entregar una unidad de un adicional de la orden ──────
+  async redeemAddon(orderAddonId: string) {
+    // Incremento condicionado en una sola sentencia: si dos staff entregan a
+    // la vez, solo se descuentan las unidades que realmente quedan.
+    const updated = await this.prisma.$executeRaw`
+      UPDATE "order_addons"
+      SET "redeemedCount" = "redeemedCount" + 1
+      WHERE "id" = ${orderAddonId} AND "redeemedCount" < "quantity"`;
+
+    const item = await this.prisma.orderAddon.findUnique({
+      where: { id: orderAddonId },
+      include: { addon: true, variant: true },
+    });
+    if (!item) throw new NotFoundException('Adicional no encontrado.');
+    if (updated === 0) {
+      throw new ConflictException(
+        `Ya se entregaron todas las unidades de "${item.addon.name}" de esta compra.`,
+      );
+    }
+
+    return {
+      id: item.id,
+      name: item.addon.name,
+      variant: item.variant?.label ?? null,
+      quantity: item.quantity,
+      redeemedCount: item.redeemedCount,
+      pending: item.quantity - item.redeemedCount,
     };
   }
 
@@ -150,7 +196,12 @@ export class TicketsService {
 
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: ticketId },
-      include: { purchaser: true, event: true, category: true },
+      include: {
+        purchaser: true,
+        event: true,
+        category: true,
+        order: { include: { addons: { include: { addon: true, variant: true } } } },
+      },
     });
     if (!ticket) throw new NotFoundException('Entrada no encontrada.');
     if (ticket.purchaserUserId !== fromUserId) {
@@ -204,6 +255,12 @@ export class TicketsService {
         eventDate: ticket.event.date,
         eventLocation: ticket.event.location,
         categoryName: ticket.category?.name ?? null,
+        redeemableAddons: ticket.order.addons
+          .filter((a) => a.quantity - a.redeemedCount > 0)
+          .map(
+            (a) =>
+              `${a.addon.name}${a.variant ? ` — ${a.variant.label}` : ''} ×${a.quantity - a.redeemedCount}`,
+          ),
       },
     );
 

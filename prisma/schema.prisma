@@ -267,6 +267,7 @@ model OrderAddon {
   variantId      String?
   quantity       Int     @default(1)
   unitPriceCents Int // snapshot del precio al momento de compra
+  redeemedCount  Int     @default(0) // cuántas unidades ya se entregaron en el evento
 
   order   Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
   addon   AddOn         @relation(fields: [addonId], references: [id])

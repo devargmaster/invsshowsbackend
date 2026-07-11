@@ -57,6 +57,8 @@ export class MailService {
       eventDate?: Date | string;
       eventLocation?: string | null;
       categoryName?: string | null;
+      /** Adicionales de la compra retirables en el evento (ej: "Remera — M ×1") */
+      redeemableAddons?: string[];
     },
   ): void {
     void (async () => {
@@ -98,7 +100,16 @@ export class MailService {
             <p style="color:#8F8FA3;font-size:12px;margin-top:4px;">
               Con este código QR ya podés entrar al evento — mostralo impreso o desde tu celular.
               También va adjunto en este mail (entrada-invs.png).
-            </p>`;
+            </p>
+            ${
+              ticket.redeemableAddons?.length
+                ? `<p style="margin-top:12px;">🎁 Esta compra incluye para retirar en el evento:</p>
+                   <ul style="margin:4px 0 0;padding-left:18px;">${ticket.redeemableAddons
+                     .map((a) => `<li>${a}</li>`)
+                     .join('')}</ul>
+                   <p style="color:#8F8FA3;font-size:12px;margin-top:4px;">Se retira mostrando esta entrada en el ingreso.</p>`
+                : ''
+            }`;
         } catch (err) {
           this.logger.error(`No se pudo generar el QR para el mail de invitación: ${(err as Error).message}`);
         }
