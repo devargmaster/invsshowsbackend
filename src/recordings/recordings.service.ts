@@ -1,10 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ContentAccessService } from '../common/services/content-access.service';
 import { CreateRecordingDto } from './dto/create-recording.dto';
 import { UpdateRecordingDto } from './dto/update-recording.dto';
 import Mux from '@mux/mux-node';
+
+/** Extrae el ID de un video de YouTube de sus formatos de URL comunes. */
+function extractYouTubeId(url: string): string | null {
+  const match = url.match(
+    /(?:youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/,
+  );
+  return match ? match[1] : null;
+}
 
 @Injectable()
 export class RecordingsService {
@@ -58,8 +66,10 @@ export class RecordingsService {
   }
 
   /**
-   * Genera un token de playback temporal (signed JWT de Mux).
-   * El cliente construye la URL: https://stream.mux.com/{playbackId}.m3u8?token={token}
+   * Resuelve la reproducción según la fuente del video:
+   * - videoUrl (ej. YouTube): devuelve la URL de embed + providerType para
+   *   que StreamPlayer renderice el iframe/WebView — sin tokens.
+   * - Mux: genera un token de playback temporal (signed JWT).
    * El control de acceso ya lo hizo ContentAccessGuard antes de llegar acá.
    */
   async getPlaybackToken(recordingId: string) {
@@ -67,6 +77,24 @@ export class RecordingsService {
       where: { id: recordingId },
     });
     if (!recording) throw new NotFoundException('Grabación no encontrada.');
+
+    if (recording.videoUrl) {
+      const youtubeId = extractYouTubeId(recording.videoUrl);
+      return {
+        playbackId: youtubeId ?? recording.videoUrl,
+        playbackUrl: youtubeId
+          ? `https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1&playsinline=1`
+          : recording.videoUrl,
+        providerType: youtubeId ? ('youtube' as const) : ('external' as const),
+        thumbnailUrl:
+          recording.thumbnailUrl ??
+          (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null),
+      };
+    }
+
+    if (!recording.muxPlaybackId) {
+      throw new BadRequestException('Esta grabación no tiene una fuente de video configurada.');
+    }
 
     const token = await this.mux.jwt.signPlaybackId(recording.muxPlaybackId, {
       type: 'video',
@@ -76,19 +104,49 @@ export class RecordingsService {
     return {
       playbackId: recording.muxPlaybackId,
       token,
+      providerType: 'mux' as const,
       hlsUrl: `https://stream.mux.com/${recording.muxPlaybackId}.m3u8?token=${token}`,
+      playbackUrl: `https://stream.mux.com/${recording.muxPlaybackId}.m3u8?token=${token}`,
       thumbnailUrl: `https://image.mux.com/${recording.muxPlaybackId}/thumbnail.jpg`,
     };
   }
 
   async create(dto: CreateRecordingDto) {
-    return this.prisma.recording.create({ data: dto });
+    this.assertHasVideoSource(dto.videoUrl, dto.muxAssetId, dto.muxPlaybackId);
+    return this.prisma.recording.create({ data: this.withAutoThumbnail(dto) });
   }
 
   async update(id: string, dto: UpdateRecordingDto) {
     const recording = await this.prisma.recording.findUnique({ where: { id } });
     if (!recording) throw new NotFoundException('Grabación no encontrada.');
-    return this.prisma.recording.update({ where: { id }, data: dto });
+    // Validar la fuente resultante después de aplicar los cambios
+    const merged = { ...recording, ...dto };
+    this.assertHasVideoSource(merged.videoUrl, merged.muxAssetId, merged.muxPlaybackId);
+    return this.prisma.recording.update({ where: { id }, data: this.withAutoThumbnail(dto) });
+  }
+
+  /** Toda grabación necesita una fuente: URL externa o el par de IDs de Mux. */
+  private assertHasVideoSource(
+    videoUrl?: string | null,
+    muxAssetId?: string | null,
+    muxPlaybackId?: string | null,
+  ) {
+    if (!videoUrl && !(muxAssetId && muxPlaybackId)) {
+      throw new BadRequestException(
+        'La grabación necesita una fuente de video: una URL (ej. YouTube) o los IDs de Mux (Asset + Playback).',
+      );
+    }
+  }
+
+  /** Si es un video de YouTube sin thumbnail propio, usa el de YouTube. */
+  private withAutoThumbnail<T extends { videoUrl?: string | null; thumbnailUrl?: string | null }>(dto: T): T {
+    if (dto.videoUrl && !dto.thumbnailUrl) {
+      const youtubeId = extractYouTubeId(dto.videoUrl);
+      if (youtubeId) {
+        return { ...dto, thumbnailUrl: `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` };
+      }
+    }
+    return dto;
   }
 
   async remove(id: string) {

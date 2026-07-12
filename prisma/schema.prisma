@@ -336,9 +336,13 @@ model Recording {
   title       String
   description String?
 
-  // Mux Video on Demand
-  muxAssetId    String
-  muxPlaybackId String
+  // Fuente del video — una de dos:
+  // (a) Mux Video on Demand (muxAssetId + muxPlaybackId), o
+  // (b) URL externa (videoUrl, ej. YouTube) — el token endpoint devuelve
+  //     la URL de embed con providerType para el StreamPlayer.
+  muxAssetId    String?
+  muxPlaybackId String?
+  videoUrl      String?
 
   duration     Int? // segundos
   thumbnailUrl String?

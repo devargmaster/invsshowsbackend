@@ -19,15 +19,22 @@ export class CreateRecordingDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ description: 'Asset ID de Mux (del video subido o grabado en live)' })
-  @IsString()
-  @IsNotEmpty()
-  muxAssetId: string;
+  // Fuente del video: URL externa (ej. YouTube) O el par de IDs de Mux.
+  // El service valida que al menos una de las dos esté presente.
+  @ApiPropertyOptional({ description: 'URL externa del video (ej. YouTube)' })
+  @IsOptional()
+  @IsUrl()
+  videoUrl?: string;
 
-  @ApiProperty({ description: 'Playback ID de Mux' })
+  @ApiPropertyOptional({ description: 'Asset ID de Mux (del video subido o grabado en live)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  muxPlaybackId: string;
+  muxAssetId?: string;
+
+  @ApiPropertyOptional({ description: 'Playback ID de Mux' })
+  @IsOptional()
+  @IsString()
+  muxPlaybackId?: string;
 
   @ApiPropertyOptional({ description: 'Duración en segundos' })
   @IsOptional()
