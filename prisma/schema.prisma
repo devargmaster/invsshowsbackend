@@ -403,3 +403,16 @@ model ContentPurchase {
 
   @@map("content_purchases")
 }
+
+model CarouselPhoto {
+  id        String   @id @default(uuid())
+  imageUrl  String
+  title     String?
+  linkUrl   String?  // URL opcional de redirección
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carousel_photos")
+}

@@ -19,6 +19,8 @@ import { MailModule } from './mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
 import { OrdersModule } from './orders/orders.module';
 import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
+import { CarouselPhotosModule } from './carousel-photos/carousel-photos.module';
+
 
 @Module({
   imports: [
@@ -56,6 +58,7 @@ import { ContentPurchasesModule } from './content-purchases/content-purchases.mo
     PaymentsModule,
     OrdersModule,
     ContentPurchasesModule,
+    CarouselPhotosModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todas las rutas

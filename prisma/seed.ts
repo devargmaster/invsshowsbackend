@@ -107,6 +107,35 @@ async function main() {
 
   console.log(`✅ Eventos creados: ${evento1.title}, ${evento2.title}, ${evento3.title}`);
 
+  // ── Carousel Photos ─────────────────────────────────────────────
+  const photo1 = await prisma.carouselPhoto.upsert({
+    where: { id: 'carousel-seed-001' },
+    update: {},
+    create: {
+      id: 'carousel-seed-001',
+      imageUrl: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=1000',
+      title: 'Próxima Live Session',
+      linkUrl: '/eventos/evt-seed-001',
+      sortOrder: 1,
+      isActive: true,
+    },
+  });
+
+  const photo2 = await prisma.carouselPhoto.upsert({
+    where: { id: 'carousel-seed-002' },
+    update: {},
+    create: {
+      id: 'carousel-seed-002',
+      imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1000',
+      title: 'Masterclass de Mezcla y Masterización',
+      linkUrl: '/eventos/evt-seed-002',
+      sortOrder: 2,
+      isActive: true,
+    },
+  });
+  console.log(`✅ Fotos de carrusel creadas: ${photo1.title}, ${photo2.title}`);
+
+
   console.log('\n✨ Seed completado!');
   console.log('\n📋 Credenciales de prueba:');
   console.log('  Admin:  admin@invs.app / Admin123!');
