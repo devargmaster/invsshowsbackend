@@ -50,6 +50,7 @@ enum OrderStatus {
 enum PaymentMethod {
   CARD_OPENPAY // Openpay Argentina (BBVA) — docs.ecommercebbva.com
   BANK_TRANSFER // queda PENDING_PAYMENT hasta validación manual en backoffice
+  MERCADOPAGO // Checkout Pro — confirmación async por webhook
 }
 
 enum TicketStatus {
@@ -124,7 +125,6 @@ model Event {
   mode        EventMode
   status      EventStatus @default(DRAFT)
 
-  coverImageUrl String?
   maxCapacity   Int? // legacy: ya no se enforcea, la capacidad real vive en TicketCategory.maxCapacity
 
   // Streaming / Mux
@@ -152,6 +152,7 @@ model Event {
   addons           AddOn[]
   orders           Order[]
   contentPurchases ContentPurchase[]
+  photos           EventPhoto[]
 
   @@map("events")
 }
@@ -243,6 +244,10 @@ model Order {
   // Openpay (BBVA Argentina)
   openpayChargeId String?
   paymentError    String?
+
+  // Mercado Pago (Checkout Pro)
+  mercadoPagoPreferenceId String?
+  mercadoPagoPaymentId    String?
 
   expiresAt DateTime? // TTL del hold de capacidad
   paidAt    DateTime?
@@ -390,6 +395,10 @@ model ContentPurchase {
   openpayChargeId String?
   paymentError    String?
 
+  // Mercado Pago (Checkout Pro)
+  mercadoPagoPreferenceId String?
+  mercadoPagoPaymentId    String?
+
   expiresAt DateTime?
   paidAt    DateTime?
 
@@ -404,15 +413,34 @@ model ContentPurchase {
   @@map("content_purchases")
 }
 
-model CarouselPhoto {
-  id        String   @id @default(uuid())
-  imageUrl  String
-  title     String?
-  linkUrl   String?  // URL opcional de redirección
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// Credenciales de proveedores de pago configurables desde el backoffice (hoy
+// solo Mercado Pago), en vez de fijas en variables de entorno. Un solo
+// negocio ⇒ un solo registro por proveedor, no hay noción de organizador.
+// accessTokenCipher va cifrado (AES-256-GCM), ver src/common/utils/credentials-crypto.util.ts.
+model PaymentSettings {
+  id                  String   @id @default(uuid())
+  provider            String   @unique // 'mercadopago'
+  environment         String // 'sandbox' | 'production'
+  accessTokenCipher   String
+  // Clave secreta de verificación de webhooks (distinta del access token,
+  // se obtiene en el panel de notificaciones/webhooks de Mercado Pago).
+  webhookSecretCipher String?
+  publicKey           String?
+  lastFour            String? // para mostrar "•••• 1234" sin exponer la key completa
+  updatedByUserId     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  @@map("carousel_photos")
+  @@map("payment_settings")
+}
+
+model EventPhoto {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("event_photos")
 }

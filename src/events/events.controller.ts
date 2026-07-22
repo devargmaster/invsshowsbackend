@@ -1,8 +1,9 @@
 import {
   Controller, Get, Post, Patch, Delete, Body,
-  Param, Query, UseGuards,
+  Param, Query, UseGuards, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -10,6 +11,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole, EventMode, EventStatus } from '@prisma/client';
+import { eventPhotoMulterOptions } from './event-photo-multer.config';
 
 @ApiTags('Events')
 @Controller('events')
@@ -65,5 +67,25 @@ export class EventsController {
   @ApiOperation({ summary: '[Admin] Eliminar evento' })
   remove(@Param('id') id: string) {
     return this.eventsService.remove(id);
+  }
+
+  @Post(':id/photos')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', eventPhotoMulterOptions))
+  @ApiOperation({ summary: '[Admin] Agregar foto a la galería del evento' })
+  addPhoto(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    return this.eventsService.addPhoto(id, file);
+  }
+
+  @Delete(':id/photos/:photoId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Quitar una foto de la galería del evento' })
+  removePhoto(@Param('id') id: string, @Param('photoId') photoId: string) {
+    return this.eventsService.removePhoto(id, photoId);
   }
 }

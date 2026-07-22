@@ -1,6 +1,6 @@
 import {
   IsString, IsNotEmpty, IsOptional, IsEnum,
-  IsDateString, IsInt, IsUrl, Min, IsBoolean,
+  IsDateString, IsInt, Min, IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EventMode } from '@prisma/client';
@@ -28,11 +28,6 @@ export class CreateEventDto {
   @ApiProperty({ enum: EventMode, example: EventMode.HIBRIDO })
   @IsEnum(EventMode)
   mode: EventMode;
-
-  @ApiPropertyOptional({ description: 'URL de imagen de portada' })
-  @IsOptional()
-  @IsUrl()
-  coverImageUrl?: string;
 
   @ApiPropertyOptional({ example: 200, description: 'Capacidad máxima presencial' })
   @IsOptional()

@@ -34,7 +34,14 @@ export default () => ({
     origins: (process.env.CORS_ORIGINS ?? 'http://localhost:3001').split(','),
   },
 
+  supabase: {
+    url: process.env.SUPABASE_URL,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  },
+
   webBaseUrl: process.env.WEB_BASE_URL ?? 'http://localhost:5174',
+  // URL pública del propio backend (para notification_url de webhooks, ej. Mercado Pago)
+  apiBaseUrl: process.env.API_BASE_URL ?? 'http://localhost:3000',
 
   payments: {
     provider: process.env.PAYMENT_PROVIDER ?? 'openpay',

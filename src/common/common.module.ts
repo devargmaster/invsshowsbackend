@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ContentAccessService } from './services/content-access.service';
+import { SupabaseStorageService } from './services/supabase-storage.service';
 
 /**
  * Servicios compartidos usados por guards que no pertenecen a un módulo
@@ -9,7 +10,7 @@ import { ContentAccessService } from './services/content-access.service';
  */
 @Global()
 @Module({
-  providers: [ContentAccessService],
-  exports: [ContentAccessService],
+  providers: [ContentAccessService, SupabaseStorageService],
+  exports: [ContentAccessService, SupabaseStorageService],
 })
 export class CommonModule {}

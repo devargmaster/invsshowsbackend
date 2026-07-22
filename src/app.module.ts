@@ -17,9 +17,10 @@ import { CategoriesModule } from './categories/categories.module';
 import { AddonsModule } from './addons/addons.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
+import { MercadoPagoWebhookModule } from './payments/mercadopago-webhook.module';
 import { OrdersModule } from './orders/orders.module';
 import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
-import { CarouselPhotosModule } from './carousel-photos/carousel-photos.module';
 
 
 @Module({
@@ -56,9 +57,10 @@ import { CarouselPhotosModule } from './carousel-photos/carousel-photos.module';
     AddonsModule,
     MailModule,
     PaymentsModule,
+    PaymentSettingsModule,
+    MercadoPagoWebhookModule,
     OrdersModule,
     ContentPurchasesModule,
-    CarouselPhotosModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todas las rutas
