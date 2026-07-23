@@ -444,3 +444,25 @@ model EventPhoto {
 
   @@map("event_photos")
 }
+
+// Paleta de colores global de INVS (backoffice + invs-web), configurable
+// desde el backoffice sin redeploy. Una sola fila para siempre — sin
+// noción de organizador ni de overrides por sección (ver AGENTS/plan).
+model ThemeSettings {
+  id                 String   @id @default("singleton")
+  colorBg            String   @default("#0B0B12")
+  colorSurface       String   @default("#13131F")
+  colorBorder        String   @default("#1E1E33")
+  colorAccent        String   @default("#A78BFA")
+  colorAccentHover   String   @default("#8B5CF6")
+  colorText          String   @default("#F0F0F5")
+  colorTextSecondary String   @default("#C4C4D4")
+  colorTextMuted     String   @default("#8F8FA3")
+  colorSuccess       String   @default("#22C55E")
+  colorDanger        String   @default("#EF4444")
+  updatedByUserId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("theme_settings")
+}

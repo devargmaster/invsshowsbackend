@@ -18,6 +18,7 @@ import { AddonsModule } from './addons/addons.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
+import { ThemeModule } from './theme/theme.module';
 import { MercadoPagoWebhookModule } from './payments/mercadopago-webhook.module';
 import { OrdersModule } from './orders/orders.module';
 import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
@@ -58,6 +59,7 @@ import { ContentPurchasesModule } from './content-purchases/content-purchases.mo
     MailModule,
     PaymentsModule,
     PaymentSettingsModule,
+    ThemeModule,
     MercadoPagoWebhookModule,
     OrdersModule,
     ContentPurchasesModule,
