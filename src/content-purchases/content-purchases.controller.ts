@@ -35,6 +35,13 @@ export class ContentPurchasesController {
     return this.contentPurchasesService.payCard(id, userId, dto);
   }
 
+  @Post(':id/pay/mercadopago')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Iniciar pago de una compra con Mercado Pago (Checkout Pro) — devuelve la URL de redirección' })
+  payMercadoPago(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.contentPurchasesService.payMercadoPago(id, userId);
+  }
+
   @Post(':id/transfer-proof')
   @UseGuards(JwtAuthGuard)
   @ApiConsumes('multipart/form-data')

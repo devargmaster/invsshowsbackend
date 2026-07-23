@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { PaymentProviderFactory } from '../payments/providers/payment-provider.factory';
+import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { CreateContentPurchaseDto } from './dto/create-content-purchase.dto';
 import { PayCardDto } from './dto/pay-card.dto';
 import { ValidateTransferDto } from './dto/validate-transfer.dto';
@@ -31,6 +32,7 @@ export class ContentPurchasesService {
     private readonly config: ConfigService,
     private readonly mailService: MailService,
     private readonly paymentFactory: PaymentProviderFactory,
+    private readonly mercadoPagoProvider: MercadoPagoProvider,
   ) {}
 
   // ─── Crear compra: sin reserva de cupo, no aplica (no hay aforo) ────
@@ -70,7 +72,7 @@ export class ContentPurchasesService {
     }
 
     const ttlMs =
-      dto.paymentMethod === PaymentMethod.CARD_OPENPAY
+      dto.paymentMethod === PaymentMethod.CARD_OPENPAY || dto.paymentMethod === PaymentMethod.MERCADOPAGO
         ? (this.config.get<number>('orders.cardTtlMinutes') ?? 15) * 60_000
         : (this.config.get<number>('orders.transferTtlHours') ?? 72) * 3_600_000;
     const expiresAt = new Date(Date.now() + ttlMs);
@@ -137,6 +139,59 @@ export class ContentPurchasesService {
     this.mailService.sendContentPurchaseApproved(purchase.user.email, title);
 
     return this.findOne(purchase.id, { id: userId, role: 'USER' });
+  }
+
+  // ─── Iniciar pago con Mercado Pago (Checkout Pro) ────────────────
+  async payMercadoPago(purchaseId: string, userId: string) {
+    const purchase = await this.prisma.contentPurchase.findUnique({
+      where: { id: purchaseId },
+      include: INCLUDE,
+    });
+    if (!purchase) throw new NotFoundException('Compra no encontrada.');
+    if (purchase.userId !== userId) throw new ForbiddenException('No podés pagar una compra que no es tuya.');
+    if (purchase.paymentMethod !== PaymentMethod.MERCADOPAGO) {
+      throw new BadRequestException('Esta compra no es de pago con Mercado Pago.');
+    }
+    if (purchase.status === OrderStatus.PAID) throw new ConflictException('Esta compra ya fue pagada.');
+    if (purchase.status === OrderStatus.CANCELLED) throw new BadRequestException('Esta compra fue cancelada.');
+    if (purchase.expiresAt && purchase.expiresAt < new Date()) {
+      throw new BadRequestException('La compra venció, iniciá una nueva.');
+    }
+
+    const title = this.getContentTitle(purchase);
+    const { redirectUrl, preferenceId } = await this.mercadoPagoProvider.createPreference({
+      externalReference: `content:${purchase.id}`,
+      amountCents: purchase.priceCents,
+      currency: purchase.currency,
+      title: `INVS - ${title}`,
+      payerEmail: purchase.user.email,
+      returnPath: `/streaming/confirmacion/${purchase.id}`,
+    });
+
+    await this.prisma.contentPurchase.update({
+      where: { id: purchase.id },
+      data: { mercadoPagoPreferenceId: preferenceId },
+    });
+
+    return { redirectUrl };
+  }
+
+  // ─── Confirmar pago de Mercado Pago (llamado desde el webhook) ───
+  async confirmMercadoPagoPayment(purchaseId: string, mpPaymentId: string, approved: boolean) {
+    const purchase = await this.prisma.contentPurchase.findUnique({ where: { id: purchaseId }, include: INCLUDE });
+    if (!purchase) throw new NotFoundException('Compra no encontrada.');
+
+    if (purchase.status === OrderStatus.PAID || purchase.status === OrderStatus.CANCELLED) {
+      return; // idempotente: los webhooks de Mercado Pago pueden llegar duplicados
+    }
+    if (!approved) return;
+
+    await this.prisma.contentPurchase.update({
+      where: { id: purchase.id },
+      data: { status: OrderStatus.PAID, mercadoPagoPaymentId: mpPaymentId, paidAt: new Date() },
+    });
+
+    this.mailService.sendContentPurchaseApproved(purchase.user.email, this.getContentTitle(purchase));
   }
 
   // ─── Subir comprobante de transferencia ─────────────────────────

@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { PaymentProviderFactory } from '../payments/providers/payment-provider.factory';
+import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PayCardDto } from './dto/pay-card.dto';
 import { ValidateTransferDto } from './dto/validate-transfer.dto';
@@ -27,6 +28,7 @@ export class OrdersService {
     private readonly config: ConfigService,
     private readonly mailService: MailService,
     private readonly paymentFactory: PaymentProviderFactory,
+    private readonly mercadoPagoProvider: MercadoPagoProvider,
   ) {
     this.hmacSecret = this.config.get<string>('qr.hmacSecret') ?? '';
   }
@@ -101,7 +103,7 @@ export class OrdersService {
     const totalCents = subtotalCents;
 
     const ttlMs =
-      dto.paymentMethod === PaymentMethod.CARD_OPENPAY
+      dto.paymentMethod === PaymentMethod.CARD_OPENPAY || dto.paymentMethod === PaymentMethod.MERCADOPAGO
         ? (this.config.get<number>('orders.cardTtlMinutes') ?? 15) * 60_000
         : (this.config.get<number>('orders.transferTtlHours') ?? 72) * 3_600_000;
     const expiresAt = new Date(Date.now() + ttlMs);
@@ -218,6 +220,66 @@ export class OrdersService {
     this.mailService.sendOrderConfirmation(order.buyer.email, order.event.title, ticketCount);
 
     return this.findOne(order.id, { id: buyerId, role: 'USER' });
+  }
+
+  // ─── Iniciar pago con Mercado Pago (Checkout Pro) ────────────────
+  async payMercadoPago(orderId: string, buyerId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { buyer: true, event: true },
+    });
+    if (!order) throw new NotFoundException('Orden no encontrada.');
+    if (order.buyerId !== buyerId) throw new ForbiddenException('No podés pagar una orden que no es tuya.');
+    if (order.paymentMethod !== PaymentMethod.MERCADOPAGO) {
+      throw new BadRequestException('Esta orden no es de pago con Mercado Pago.');
+    }
+    if (order.status === OrderStatus.PAID) throw new ConflictException('Esta orden ya fue pagada.');
+    if (order.status === OrderStatus.CANCELLED) throw new BadRequestException('Esta orden fue cancelada.');
+    if (order.expiresAt && order.expiresAt < new Date()) {
+      throw new BadRequestException('La orden venció, iniciá una compra nueva.');
+    }
+
+    const { redirectUrl, preferenceId } = await this.mercadoPagoProvider.createPreference({
+      externalReference: `order:${order.id}`,
+      amountCents: order.totalCents,
+      currency: order.currency,
+      title: `INVS - ${order.event.title}`,
+      payerEmail: order.buyer.email,
+      returnPath: `/checkout/confirmacion/${order.id}`,
+    });
+
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: { mercadoPagoPreferenceId: preferenceId },
+    });
+
+    return { redirectUrl };
+  }
+
+  // ─── Confirmar pago de Mercado Pago (llamado desde el webhook) ───
+  async confirmMercadoPagoPayment(orderId: string, mpPaymentId: string, approved: boolean) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { buyer: true, event: true },
+    });
+    if (!order) throw new NotFoundException('Orden no encontrada.');
+
+    // Idempotente: los webhooks de Mercado Pago pueden llegar duplicados.
+    if (order.status === OrderStatus.PAID || order.status === OrderStatus.CANCELLED) {
+      return;
+    }
+    if (!approved) return; // queda PENDING_PAYMENT hasta un webhook posterior o el TTL
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.PAID, mercadoPagoPaymentId: mpPaymentId, paidAt: new Date() },
+      });
+      await this.activateOrderTickets(tx, order.id, order.event.date);
+    });
+
+    const ticketCount = await this.prisma.ticket.count({ where: { orderId: order.id } });
+    this.mailService.sendOrderConfirmation(order.buyer.email, order.event.title, ticketCount);
   }
 
   // ─── Subir comprobante de transferencia ─────────────────────────
