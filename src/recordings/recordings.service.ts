@@ -4,15 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ContentAccessService } from '../common/services/content-access.service';
 import { CreateRecordingDto } from './dto/create-recording.dto';
 import { UpdateRecordingDto } from './dto/update-recording.dto';
+import { extractYouTubeId } from '../common/utils/youtube.util';
 import Mux from '@mux/mux-node';
-
-/** Extrae el ID de un video de YouTube de sus formatos de URL comunes. */
-function extractYouTubeId(url: string): string | null {
-  const match = url.match(
-    /(?:youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/,
-  );
-  return match ? match[1] : null;
-}
 
 @Injectable()
 export class RecordingsService {

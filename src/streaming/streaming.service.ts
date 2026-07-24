@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { StreamingProviderFactory } from './providers/streaming-provider.factory';
+import { extractYouTubeId } from '../common/utils/youtube.util';
 
 @Injectable()
 export class StreamingService {
@@ -63,6 +64,36 @@ export class StreamingService {
       provider: provider.providerType,
       ...result,
     };
+  }
+
+  /**
+   * [Admin] Poner en vivo (o cortar) un evento a mano, sin pasar por un
+   * proveedor con API de creación de streams (ej. YouTube, mientras Mux
+   * esté en el plan free que no permite live). Reutiliza muxPlaybackId
+   * como "el ID que el proveedor activo necesita para reproducir" —
+   * mismo campo, sin importar si el proveedor real es Mux o no.
+   */
+  async setManualLive(eventId: string, videoUrl?: string) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Evento no encontrado.');
+
+    if (!videoUrl) {
+      await this.prisma.event.update({ where: { id: eventId }, data: { isLive: false } });
+      this.logger.log(`Live manual cortado para evento ${eventId}`);
+      return { isLive: false };
+    }
+
+    const playbackId = extractYouTubeId(videoUrl);
+    if (!playbackId) {
+      throw new BadRequestException('No se pudo extraer un ID de YouTube de esa URL.');
+    }
+
+    await this.prisma.event.update({
+      where: { id: eventId },
+      data: { muxPlaybackId: playbackId, isLive: true },
+    });
+    this.logger.log(`Live manual activado para evento ${eventId}: ${playbackId}`);
+    return { isLive: true, playbackId };
   }
 
   /**

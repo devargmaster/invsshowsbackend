@@ -4,6 +4,7 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { StreamingService } from './streaming.service';
+import { SetManualLiveDto } from './dto/set-manual-live.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ContentAccessGuard } from '../common/guards/content-access.guard';
@@ -33,6 +34,16 @@ export class StreamingController {
   @ApiOperation({ summary: '[Admin] Crear live stream en Mux para un evento' })
   createLiveStream(@Param('eventId') eventId: string) {
     return this.streamingService.createLiveStream(eventId);
+  }
+
+  // ── Admin: poner en vivo (o cortar) a mano, ej. con un link de YouTube ──
+  @Post(':eventId/manual-live')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Poner en vivo (o cortar) un evento a mano con un link de YouTube' })
+  setManualLive(@Param('eventId') eventId: string, @Body() dto: SetManualLiveDto) {
+    return this.streamingService.setManualLive(eventId, dto.videoUrl);
   }
 
   // ── Webhook del proveedor activo (sin auth — verificación de firma interna) ─
