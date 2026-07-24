@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../common/services/supabase-storage.service';
 import { CreateAddonDto } from './dto/create-addon.dto';
 import { UpdateAddonDto } from './dto/update-addon.dto';
 
 @Injectable()
 export class AddonsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: SupabaseStorageService,
+  ) {}
 
   async findAllPublic(eventId: string) {
     return this.prisma.addOn.findMany({
@@ -73,6 +77,22 @@ export class AddonsService {
       return this.prisma.addOn.update({ where: { id }, data: { isActive: false } });
     }
     return this.prisma.addOn.delete({ where: { id } });
+  }
+
+  async setImage(id: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Falta el archivo de imagen.');
+    const addon = await this.findOne(id);
+
+    const url = await this.storage.uploadAddonImage(id, file);
+    if (addon.imageUrl) await this.storage.deleteAddonImage(addon.imageUrl);
+
+    return this.prisma.addOn.update({ where: { id }, data: { imageUrl: url } });
+  }
+
+  async removeImage(id: string) {
+    const addon = await this.findOne(id);
+    if (addon.imageUrl) await this.storage.deleteAddonImage(addon.imageUrl);
+    return this.prisma.addOn.update({ where: { id }, data: { imageUrl: null } });
   }
 
   async addVariant(addonId: string, label: string) {

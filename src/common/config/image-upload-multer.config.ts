@@ -3,7 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 
 // En memoria, no disco: el archivo se reenvía tal cual a Supabase Storage,
 // nunca se escribe al filesystem efímero de Railway.
-export const eventPhotoMulterOptions = {
+export const imageUploadMulterOptions = {
   storage: memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (_req: unknown, file: Express.Multer.File, cb: (error: Error | null, accept: boolean) => void) => {

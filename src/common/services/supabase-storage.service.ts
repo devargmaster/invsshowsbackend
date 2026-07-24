@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+// Un solo bucket para todas las imágenes subidas por el backoffice —
+// fotos de evento bajo "<eventId>/...", imágenes de adicional bajo
+// "addons/<addonId>/..." — no hace falta crear un bucket nuevo en Supabase
+// por cada tipo de imagen.
 const EVENT_COVERS_BUCKET = 'event-covers';
 
 // Llama directo a la REST API de Supabase Storage en vez de usar
@@ -14,7 +18,23 @@ export class SupabaseStorageService {
   private readonly serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
   async uploadEventPhoto(eventId: string, file: Express.Multer.File): Promise<string> {
-    const path = `${eventId}/${Date.now()}-${Math.round(Math.random() * 1e9)}.${extensionFor(file.mimetype)}`;
+    return this.uploadImage(eventId, file);
+  }
+
+  async deleteEventPhoto(publicUrl: string): Promise<void> {
+    return this.deleteImage(publicUrl);
+  }
+
+  async uploadAddonImage(addonId: string, file: Express.Multer.File): Promise<string> {
+    return this.uploadImage(`addons/${addonId}`, file);
+  }
+
+  async deleteAddonImage(publicUrl: string): Promise<void> {
+    return this.deleteImage(publicUrl);
+  }
+
+  private async uploadImage(pathPrefix: string, file: Express.Multer.File): Promise<string> {
+    const path = `${pathPrefix}/${Date.now()}-${Math.round(Math.random() * 1e9)}.${extensionFor(file.mimetype)}`;
 
     const res = await fetch(`${this.baseUrl}/object/${EVENT_COVERS_BUCKET}/${path}`, {
       method: 'POST',
@@ -33,7 +53,7 @@ export class SupabaseStorageService {
     return `${process.env.SUPABASE_URL}/storage/v1/object/public/${EVENT_COVERS_BUCKET}/${path}`;
   }
 
-  async deleteEventPhoto(publicUrl: string): Promise<void> {
+  private async deleteImage(publicUrl: string): Promise<void> {
     const marker = `/object/public/${EVENT_COVERS_BUCKET}/`;
     const idx = publicUrl.indexOf(marker);
     if (idx === -1) return; // no era un objeto de este bucket (ej. imagen default), nada que borrar

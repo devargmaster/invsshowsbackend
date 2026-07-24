@@ -1,8 +1,9 @@
 import {
   Controller, Get, Post, Patch, Delete, Body,
-  Param, UseGuards,
+  Param, UseGuards, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { AddonsService } from './addons.service';
 import { CreateAddonDto } from './dto/create-addon.dto';
 import { UpdateAddonDto } from './dto/update-addon.dto';
@@ -10,6 +11,7 @@ import { AddVariantDto } from './dto/add-variant.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { imageUploadMulterOptions } from '../common/config/image-upload-multer.config';
 import { UserRole } from '@prisma/client';
 
 @ApiTags('Add-ons')
@@ -58,6 +60,26 @@ export class AddonsController {
   @ApiOperation({ summary: '[Admin] Eliminar adicional (se desactiva si ya tiene ventas)' })
   remove(@Param('id') id: string) {
     return this.addonsService.remove(id);
+  }
+
+  @Post('addons/:id/image')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', imageUploadMulterOptions))
+  @ApiOperation({ summary: '[Admin] Subir (o reemplazar) la imagen de un adicional' })
+  setImage(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    return this.addonsService.setImage(id, file);
+  }
+
+  @Delete('addons/:id/image')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Quitar la imagen de un adicional' })
+  removeImage(@Param('id') id: string) {
+    return this.addonsService.removeImage(id);
   }
 
   @Post('addons/:id/variants')

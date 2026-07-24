@@ -193,6 +193,7 @@ model AddOn {
   eventId       String
   name          String
   description   String?
+  imageUrl      String?
   priceCents    Int
   currency      String  @default("ARS")
   hasVariants   Boolean @default(false) // true para remeras (talles)
