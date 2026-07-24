@@ -78,7 +78,10 @@ export class StreamingService {
     if (!event) throw new NotFoundException('Evento no encontrado.');
 
     if (!videoUrl) {
-      await this.prisma.event.update({ where: { id: eventId }, data: { isLive: false } });
+      await this.prisma.event.update({
+        where: { id: eventId },
+        data: { isLive: false, manualLiveStartedAt: null },
+      });
       this.logger.log(`Live manual cortado para evento ${eventId}`);
       return { isLive: false };
     }
@@ -90,7 +93,7 @@ export class StreamingService {
 
     await this.prisma.event.update({
       where: { id: eventId },
-      data: { muxPlaybackId: playbackId, isLive: true },
+      data: { muxPlaybackId: playbackId, isLive: true, manualLiveStartedAt: new Date() },
     });
     this.logger.log(`Live manual activado para evento ${eventId}: ${playbackId}`);
     return { isLive: true, playbackId };

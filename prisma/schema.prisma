@@ -134,6 +134,9 @@ model Event {
   streamKey     String? // Stream key RTMP para OBS/broadcast
   rtmpUrl       String? // URL RTMP del ingest de Mux
   isLive        Boolean @default(false)
+  // Solo se setea para el live manual (sin muxLiveId) — el cron de
+  // ManualLiveCleanupService lo usa para cortar solo si nadie lo hizo a mano.
+  manualLiveStartedAt DateTime?
 
   // Acceso al streaming en vivo de este evento — combinable, igual que en
   // Recording: puede ser gratis, incluido en suscripción, y/o comprable

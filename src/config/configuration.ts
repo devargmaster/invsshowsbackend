@@ -21,6 +21,10 @@ export default () => ({
 
   streaming: {
     provider: process.env.STREAMING_PROVIDER ?? 'mux', // 'mux' | 'youtube'
+    // Corte automático del live manual (YouTube) si nadie lo cortó a mano —
+    // no hay forma de saber si el YouTube Live realmente sigue activo sin
+    // implementar la API de YouTube, así que esto es la salvaguarda.
+    manualLiveTtlHours: parseInt(process.env.MANUAL_LIVE_TTL_HOURS ?? '6', 10),
   },
 
   mux: {
