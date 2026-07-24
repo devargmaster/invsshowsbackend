@@ -78,7 +78,7 @@ export class AuthController {
     @CurrentUser('id') userId: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    res.clearCookie('refresh_token');
+    res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
     return this.authService.logout(userId);
   }
 
@@ -90,7 +90,11 @@ export class AuthController {
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 días en ms
-      path: '/auth/refresh',
+      // El path de una cookie es sobre la URL real, no sobre la ruta de
+      // Nest — con el prefijo global `api/v1` (main.ts), el endpoint real
+      // es /api/v1/auth/refresh. Con solo "/auth/refresh" el browser nunca
+      // la mandaba de vuelta y el refresh moría con 401 siempre.
+      path: '/api/v1/auth/refresh',
     });
   }
 }
