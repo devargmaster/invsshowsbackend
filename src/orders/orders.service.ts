@@ -260,6 +260,36 @@ export class OrdersService {
     return { redirectUrl };
   }
 
+  // ─── Sincronizar pago de Mercado Pago a demanda (llamado desde la
+  // página de confirmación) ──────────────────────────────────────
+  // auto_return trae al comprador de vuelta a invs-web apenas MP aprueba
+  // el pago — el webhook que confirma la orden es una llamada aparte,
+  // asíncrona, sin garantía de orden ni de timing contra el redirect. En
+  // vez de esperar pasivamente a que el webhook llegue (podría no llegar
+  // nunca si notification_url quedó mal seteado), la página de
+  // confirmación puede pedir esto usando el payment_id que MP ya le pasó
+  // por query string, consultando a MP directamente en vez de confiar en
+  // que el webhook ya corrió.
+  async syncMercadoPagoPayment(orderId: string, buyerId: string, mpPaymentId: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Orden no encontrada.');
+    if (order.buyerId !== buyerId) throw new ForbiddenException('No podés consultar una orden que no es tuya.');
+    if (order.paymentMethod !== PaymentMethod.MERCADOPAGO) {
+      throw new BadRequestException('Esta orden no es de pago con Mercado Pago.');
+    }
+
+    if (order.status !== OrderStatus.PAID && order.status !== OrderStatus.CANCELLED) {
+      const payment = await this.mercadoPagoProvider.getPayment(mpPaymentId);
+      // El payment_id es un query param público — validar que en verdad
+      // pertenezca a esta orden antes de darlo por bueno.
+      if (payment.externalReference === `order:${order.id}`) {
+        await this.confirmMercadoPagoPayment(order.id, mpPaymentId, payment.status === 'approved');
+      }
+    }
+
+    return this.findOne(order.id, { id: buyerId, role: 'USER' });
+  }
+
   // ─── Confirmar pago de Mercado Pago (llamado desde el webhook) ───
   async confirmMercadoPagoPayment(orderId: string, mpPaymentId: string, approved: boolean) {
     const order = await this.prisma.order.findUnique({

@@ -47,6 +47,17 @@ export class OrdersController {
     return this.ordersService.payCard(id, userId, dto);
   }
 
+  @Post(':id/sync-mercadopago')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Consultar a Mercado Pago el estado real del pago y confirmar la orden si corresponde' })
+  syncMercadoPago(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body('paymentId') paymentId: string,
+  ) {
+    return this.ordersService.syncMercadoPagoPayment(id, userId, paymentId);
+  }
+
   @Post(':id/pay/mercadopago')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Iniciar pago de una orden con Mercado Pago (Checkout Pro) — devuelve la URL de redirección' })

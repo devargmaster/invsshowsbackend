@@ -180,6 +180,27 @@ export class ContentPurchasesService {
     return { redirectUrl };
   }
 
+  // ─── Sincronizar pago de Mercado Pago a demanda (ver mismo método en
+  // OrdersService para la explicación completa de la carrera con
+  // auto_return) ───────────────────────────────────────────────
+  async syncMercadoPagoPayment(purchaseId: string, userId: string, mpPaymentId: string) {
+    const purchase = await this.prisma.contentPurchase.findUnique({ where: { id: purchaseId } });
+    if (!purchase) throw new NotFoundException('Compra no encontrada.');
+    if (purchase.userId !== userId) throw new ForbiddenException('No podés consultar una compra que no es tuya.');
+    if (purchase.paymentMethod !== PaymentMethod.MERCADOPAGO) {
+      throw new BadRequestException('Esta compra no es de pago con Mercado Pago.');
+    }
+
+    if (purchase.status !== OrderStatus.PAID && purchase.status !== OrderStatus.CANCELLED) {
+      const payment = await this.mercadoPagoProvider.getPayment(mpPaymentId);
+      if (payment.externalReference === `content:${purchase.id}`) {
+        await this.confirmMercadoPagoPayment(purchase.id, mpPaymentId, payment.status === 'approved');
+      }
+    }
+
+    return this.findOne(purchase.id, { id: userId, role: 'USER' });
+  }
+
   // ─── Confirmar pago de Mercado Pago (llamado desde el webhook) ───
   async confirmMercadoPagoPayment(purchaseId: string, mpPaymentId: string, approved: boolean) {
     const purchase = await this.prisma.contentPurchase.findUnique({ where: { id: purchaseId }, include: INCLUDE });

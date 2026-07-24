@@ -46,6 +46,17 @@ export class ContentPurchasesController {
     return this.contentPurchasesService.payMercadoPago(id, userId);
   }
 
+  @Post(':id/sync-mercadopago')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Consultar a Mercado Pago el estado real del pago y confirmar la compra si corresponde' })
+  syncMercadoPago(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body('paymentId') paymentId: string,
+  ) {
+    return this.contentPurchasesService.syncMercadoPagoPayment(id, userId, paymentId);
+  }
+
   @Post(':id/transfer-proof')
   @UseGuards(JwtAuthGuard)
   @ApiConsumes('multipart/form-data')
