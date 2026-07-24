@@ -446,23 +446,51 @@ model EventPhoto {
 }
 
 // Paleta de colores global de INVS (backoffice + invs-web), configurable
-// desde el backoffice sin redeploy. Una sola fila para siempre — sin
-// noción de organizador ni de overrides por sección (ver AGENTS/plan).
+// desde el backoffice sin redeploy. Una sola fila para siempre.
 model ThemeSettings {
   id                 String   @id @default("singleton")
-  colorBg            String   @default("#0B0B12")
-  colorSurface       String   @default("#13131F")
-  colorBorder        String   @default("#1E1E33")
-  colorAccent        String   @default("#A78BFA")
-  colorAccentHover   String   @default("#8B5CF6")
-  colorText          String   @default("#F0F0F5")
-  colorTextSecondary String   @default("#C4C4D4")
-  colorTextMuted     String   @default("#8F8FA3")
-  colorSuccess       String   @default("#22C55E")
-  colorDanger        String   @default("#EF4444")
+  colorBg            String   @default("#0B0C0E")
+  colorSurface       String   @default("#15171A")
+  colorBorder        String   @default("#30343A")
+  colorAccent        String   @default("#D9F5F8")
+  colorAccentHover   String   @default("#F4FEFF")
+  colorText          String   @default("#F4F4F2")
+  colorTextSecondary String   @default("#B8BBC0")
+  colorTextMuted     String   @default("#7C8188")
+  colorSuccess       String   @default("#3DCC8C")
+  colorDanger        String   @default("#FF626A")
   updatedByUserId    String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@map("theme_settings")
+}
+
+enum ThemeModule {
+  EVENTS
+  STREAMING
+}
+
+// Override parcial de la paleta global por módulo de invs-web (no aplica a
+// invs-backoffice, que se queda con un único tema). Cada color es nullable:
+// null significa "hereda el valor de ThemeSettings", no "usa un default
+// propio" — el merge lo hace ThemeService, nunca el cliente.
+model ThemeModuleOverride {
+  id                 String      @id @default(cuid())
+  module             ThemeModule @unique
+  colorBg            String?
+  colorSurface       String?
+  colorBorder        String?
+  colorAccent        String?
+  colorAccentHover   String?
+  colorText          String?
+  colorTextSecondary String?
+  colorTextMuted     String?
+  colorSuccess       String?
+  colorDanger        String?
+  updatedByUserId    String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@map("theme_module_overrides")
 }

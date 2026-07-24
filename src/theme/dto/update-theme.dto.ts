@@ -4,52 +4,52 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 const HEX_COLOR = /^#([0-9A-Fa-f]{3}){1,2}$/;
 
 export class UpdateThemeDto {
-  @ApiPropertyOptional({ example: '#0B0B12' })
+  @ApiPropertyOptional({ example: '#0B0C0E' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorBg?: string;
 
-  @ApiPropertyOptional({ example: '#13131F' })
+  @ApiPropertyOptional({ example: '#15171A' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorSurface?: string;
 
-  @ApiPropertyOptional({ example: '#1E1E33' })
+  @ApiPropertyOptional({ example: '#30343A' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorBorder?: string;
 
-  @ApiPropertyOptional({ example: '#A78BFA' })
+  @ApiPropertyOptional({ example: '#D9F5F8' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorAccent?: string;
 
-  @ApiPropertyOptional({ example: '#8B5CF6' })
+  @ApiPropertyOptional({ example: '#F4FEFF' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorAccentHover?: string;
 
-  @ApiPropertyOptional({ example: '#F0F0F5' })
+  @ApiPropertyOptional({ example: '#F4F4F2' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorText?: string;
 
-  @ApiPropertyOptional({ example: '#C4C4D4' })
+  @ApiPropertyOptional({ example: '#B8BBC0' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorTextSecondary?: string;
 
-  @ApiPropertyOptional({ example: '#8F8FA3' })
+  @ApiPropertyOptional({ example: '#7C8188' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorTextMuted?: string;
 
-  @ApiPropertyOptional({ example: '#22C55E' })
+  @ApiPropertyOptional({ example: '#3DCC8C' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorSuccess?: string;
 
-  @ApiPropertyOptional({ example: '#EF4444' })
+  @ApiPropertyOptional({ example: '#FF626A' })
   @IsOptional()
   @Matches(HEX_COLOR)
   colorDanger?: string;

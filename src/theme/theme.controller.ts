@@ -11,8 +11,8 @@ export class ThemeController {
   constructor(private readonly themeService: ThemeService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Paleta de colores activa (público)' })
+  @ApiOperation({ summary: 'Paleta de colores activa, global + resuelta por módulo (público)' })
   get() {
-    return this.themeService.getEffective();
+    return this.themeService.getPublicPayload();
   }
 }
