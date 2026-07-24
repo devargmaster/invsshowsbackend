@@ -10,9 +10,13 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+
+const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 @Injectable()
 export class AuthService {
@@ -23,6 +27,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly mailService: MailService,
   ) {
     this.googleClient = new OAuth2Client(this.config.get<string>('google.clientId'));
   }
@@ -155,6 +160,57 @@ export class AuthService {
       data: { refreshToken: null },
     });
     return { message: 'Sesión cerrada correctamente.' };
+  }
+
+  // ─── Recuperar contraseña (self-service, comunidad) ───────────────
+  // Nunca revela si el email existe o no — misma respuesta genérica en los
+  // dos casos, para no habilitar enumeración de cuentas.
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user) {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: tokenHash,
+          passwordResetExpiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+        },
+      });
+
+      const webBaseUrl = this.config.get<string>('webBaseUrl');
+      const resetUrl = `${webBaseUrl}/resetear-password?token=${rawToken}`;
+      this.mailService.sendPasswordReset(user.email, resetUrl);
+      this.logger.log(`Reset de contraseña solicitado: ${user.email}`);
+    }
+
+    return { message: 'Si el email existe, te enviamos un link para restablecer tu contraseña.' };
+  }
+
+  async resetPassword(rawToken: string, newPassword: string) {
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    const user = await this.prisma.user.findFirst({
+      where: { passwordResetToken: tokenHash, passwordResetExpiresAt: { gt: new Date() } },
+    });
+    if (!user) {
+      throw new UnauthorizedException('El link venció o no es válido. Pedí uno nuevo.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        refreshToken: null, // cierra cualquier sesión existente
+      },
+    });
+
+    this.logger.log(`Contraseña restablecida: ${user.email}`);
+    return { message: 'Contraseña actualizada. Ya podés iniciar sesión.' };
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────

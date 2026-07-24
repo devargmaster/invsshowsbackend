@@ -14,6 +14,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -80,6 +82,22 @@ export class AuthController {
   ) {
     res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
     return this.authService.logout(userId);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60_000 } }) // anti-abuso: no permite martillar el envío de mails
+  @ApiOperation({ summary: 'Pedir link de recuperación de contraseña por email' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Establecer nueva contraseña con el token recibido por email' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
   // ─── Cookie helper ───────────────────────────────────────────────

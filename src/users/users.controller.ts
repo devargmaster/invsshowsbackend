@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -42,5 +42,21 @@ export class UsersController {
   @ApiOperation({ summary: '[Admin] Cambiar rol de un usuario' })
   changeRole(@Param('id') id: string, @Body('role') role: UserRole) {
     return this.usersService.changeRole(id, role);
+  }
+
+  @Post(':id/reset-password')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Resetear la contraseña de una cuenta ADMIN/STAFF (nunca de la comunidad)' })
+  resetPassword(@Param('id') id: string) {
+    return this.usersService.resetPasswordAdmin(id);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Eliminar una cuenta ADMIN/STAFF (nunca de la comunidad)' })
+  remove(@Param('id') id: string, @CurrentUser('id') requestingUserId: string) {
+    return this.usersService.removeAdmin(requestingUserId, id);
   }
 }

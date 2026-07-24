@@ -38,6 +38,16 @@ export class MailService {
     }
   }
 
+  sendPasswordReset(to: string, resetUrl: string): void {
+    const html = layout(
+      'Restablecer contraseña',
+      `<p>Pediste restablecer tu contraseña en INVS.</p>
+       <p>Este link vence en 1 hora. Si no fuiste vos, ignorá este mail — tu contraseña sigue siendo la misma.</p>
+       ${button(resetUrl, 'Elegir nueva contraseña')}`,
+    );
+    void this.safeSend(to, 'Restablecer tu contraseña — INVS', html);
+  }
+
   sendOrderConfirmation(to: string, eventTitle: string, ticketCount: number): void {
     const html = layout(
       '¡Compra confirmada!',

@@ -80,6 +80,15 @@ model User {
   role         UserRole @default(USER)
   refreshToken String? // Hashed refresh token
 
+  // Reset de contraseña por email (self-service, comunidad). SHA-256 y no
+  // bcrypt a propósito: necesitamos poder buscar por el token que llega en
+  // la URL (WHERE passwordResetToken = sha256(token)) — bcrypt no es
+  // determinístico, no se puede indexar/buscar así. Es seguro igual porque
+  // el token es aleatorio de alta entropía y de un solo uso con expiración
+  // corta, no una contraseña de largo plazo.
+  passwordResetToken     String?
+  passwordResetExpiresAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
