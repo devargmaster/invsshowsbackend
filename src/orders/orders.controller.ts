@@ -32,8 +32,12 @@ export class OrdersController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Crear una orden (carrito de categorías + adicionales), reserva capacidad' })
-  create(@CurrentUser('id') userId: string, @Body() dto: CreateOrderDto) {
-    return this.ordersService.create(userId, dto);
+  create(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+    @Body() dto: CreateOrderDto,
+  ) {
+    return this.ordersService.create(userId, role, dto);
   }
 
   @Post(':id/pay/card')

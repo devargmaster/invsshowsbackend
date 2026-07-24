@@ -24,8 +24,12 @@ export class ContentPurchasesController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Comprar contenido suelto (una grabación o el vivo de un evento)' })
-  create(@CurrentUser('id') userId: string, @Body() dto: CreateContentPurchaseDto) {
-    return this.contentPurchasesService.create(userId, dto);
+  create(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+    @Body() dto: CreateContentPurchaseDto,
+  ) {
+    return this.contentPurchasesService.create(userId, role, dto);
   }
 
   @Post(':id/pay/card')

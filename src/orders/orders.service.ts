@@ -10,7 +10,7 @@ import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider'
 import { CreateOrderDto } from './dto/create-order.dto';
 import { PayCardDto } from './dto/pay-card.dto';
 import { ValidateTransferDto } from './dto/validate-transfer.dto';
-import { OrderStatus, PaymentMethod, TicketStatus, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentMethod, TicketStatus, UserRole, Prisma } from '@prisma/client';
 import { buildQrPayload } from '../common/utils/qr-signer.util';
 
 export interface OrderFilters {
@@ -45,7 +45,11 @@ export class OrdersService {
   }
 
   // ─── Crear orden: reserva capacidad de forma atómica ────────────
-  async create(buyerId: string, dto: CreateOrderDto) {
+  async create(buyerId: string, buyerRole: UserRole, dto: CreateOrderDto) {
+    if (buyerRole !== UserRole.USER) {
+      throw new ForbiddenException('Las cuentas de staff/admin no pueden comprar entradas. Iniciá sesión con una cuenta personal.');
+    }
+
     const event = await this.prisma.event.findUnique({ where: { id: dto.eventId } });
     if (!event) throw new NotFoundException('Evento no encontrado.');
 

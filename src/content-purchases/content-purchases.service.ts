@@ -10,7 +10,7 @@ import { MercadoPagoProvider } from '../payments/providers/mercadopago.provider'
 import { CreateContentPurchaseDto } from './dto/create-content-purchase.dto';
 import { PayCardDto } from './dto/pay-card.dto';
 import { ValidateTransferDto } from './dto/validate-transfer.dto';
-import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { OrderStatus, PaymentMethod, UserRole } from '@prisma/client';
 
 export interface ContentPurchaseFilters {
   status?: OrderStatus;
@@ -36,7 +36,11 @@ export class ContentPurchasesService {
   ) {}
 
   // ─── Crear compra: sin reserva de cupo, no aplica (no hay aforo) ────
-  async create(userId: string, dto: CreateContentPurchaseDto) {
+  async create(userId: string, userRole: UserRole, dto: CreateContentPurchaseDto) {
+    if (userRole !== UserRole.USER) {
+      throw new ForbiddenException('Las cuentas de staff/admin no pueden comprar contenido. Iniciá sesión con una cuenta personal.');
+    }
+
     if (!!dto.recordingId === !!dto.eventId) {
       throw new BadRequestException('Indicá exactamente uno: recordingId o eventId.');
     }
