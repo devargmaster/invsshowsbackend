@@ -89,6 +89,15 @@ export class EventsService {
 
   async remove(id: string) {
     const event = await this.findOne(id);
+    if (event._count.tickets > 0) {
+      // Ya tiene tickets asociados: borrarlo rompería la FK
+      // tickets_eventId_fkey (mismo criterio que TicketCategory.remove).
+      // Se cancela en vez de borrarse.
+      return this.prisma.event.update({
+        where: { id },
+        data: { status: EventStatus.CANCELLED },
+      });
+    }
     const deleted = await this.prisma.event.delete({ where: { id } });
     await Promise.all(event.photos.map((p) => this.storage.deleteEventPhoto(p.url)));
     return deleted;
