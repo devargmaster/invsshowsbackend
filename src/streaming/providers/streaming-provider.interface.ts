@@ -4,7 +4,7 @@
  * y registrarla en StreamingProviderFactory.
  */
 
-export type ProviderType = 'mux' | 'youtube' | 'vimeo';
+export type ProviderType = 'mux' | 'youtube' | 'vimeo' | 'twitch';
 
 export interface PlaybackResult {
   /** URL HLS (.m3u8) para Mux/Vimeo, o URL de embed para YouTube */

@@ -41,9 +41,9 @@ export class StreamingController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: '[Admin] Poner en vivo (o cortar) un evento a mano con un link de YouTube' })
+  @ApiOperation({ summary: '[Admin] Poner en vivo (o cortar) un evento a mano con un link de YouTube o Twitch' })
   setManualLive(@Param('eventId') eventId: string, @Body() dto: SetManualLiveDto) {
-    return this.streamingService.setManualLive(eventId, dto.videoUrl);
+    return this.streamingService.setManualLive(eventId, dto.provider, dto.videoUrl);
   }
 
   // ── Webhook del proveedor activo (sin auth — verificación de firma interna) ─

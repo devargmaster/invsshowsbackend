@@ -3,6 +3,7 @@ import { StreamingService } from './streaming.service';
 import { StreamingController } from './streaming.controller';
 import { MuxProvider } from './providers/mux.provider';
 import { YouTubeProvider } from './providers/youtube.provider';
+import { TwitchProvider } from './providers/twitch.provider';
 import { StreamingProviderFactory } from './providers/streaming-provider.factory';
 import { ManualLiveCleanupService } from './manual-live-cleanup.service';
 
@@ -12,6 +13,7 @@ import { ManualLiveCleanupService } from './manual-live-cleanup.service';
     // Registrar todos los proveedores disponibles
     MuxProvider,
     YouTubeProvider,
+    TwitchProvider,
     // La factory elige cuál activar según STREAMING_PROVIDER en .env
     StreamingProviderFactory,
     StreamingService,

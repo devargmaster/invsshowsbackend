@@ -146,6 +146,10 @@ model Event {
   // Solo se setea para el live manual (sin muxLiveId) — el cron de
   // ManualLiveCleanupService lo usa para cortar solo si nadie lo hizo a mano.
   manualLiveStartedAt DateTime?
+  // Qué proveedor eligió el admin para el live manual de este evento —
+  // independiente del STREAMING_PROVIDER global, que es para Mux/el
+  // proveedor "principal". Null si el evento no usa live manual.
+  manualLiveProvider  ManualLiveProvider?
 
   // Acceso al streaming en vivo de este evento — combinable, igual que en
   // Recording: puede ser gratis, incluido en suscripción, y/o comprable
@@ -482,6 +486,14 @@ model ThemeSettings {
 enum ThemeModule {
   EVENTS
   STREAMING
+}
+
+// Proveedores soportados para el live manual (el admin transmite por su
+// cuenta desde OBS y solo pega el link/canal — sin API de creación de
+// stream de por medio, a diferencia de Mux).
+enum ManualLiveProvider {
+  YOUTUBE
+  TWITCH
 }
 
 // Override parcial de la paleta global por módulo de invs-web (no aplica a

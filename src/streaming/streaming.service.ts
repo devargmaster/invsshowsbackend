@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { ManualLiveProvider } from '@prisma/client';
 import { StreamingProviderFactory } from './providers/streaming-provider.factory';
 import { extractYouTubeId } from '../common/utils/youtube.util';
+import { extractTwitchChannel } from '../common/utils/twitch.util';
 
 @Injectable()
 export class StreamingService {
@@ -31,7 +33,13 @@ export class StreamingService {
       throw new BadRequestException('El streaming de este evento aún no está activo.');
     }
 
-    const provider = this.providerFactory.getProvider();
+    // Live manual: el proveedor lo eligió el admin por evento (YouTube o
+    // Twitch), independiente del STREAMING_PROVIDER global. Sin
+    // manualLiveProvider, es un live "real" (Mux) y se usa el activo.
+    const provider = event.manualLiveProvider
+      ? this.providerFactory.getByType(event.manualLiveProvider.toLowerCase() as 'youtube' | 'twitch')
+      : this.providerFactory.getProvider();
+
     return provider.getPlaybackToken(event.muxPlaybackId, this.signedUrlTtl);
   }
 
@@ -68,35 +76,45 @@ export class StreamingService {
 
   /**
    * [Admin] Poner en vivo (o cortar) un evento a mano, sin pasar por un
-   * proveedor con API de creación de streams (ej. YouTube, mientras Mux
-   * esté en el plan free que no permite live). Reutiliza muxPlaybackId
-   * como "el ID que el proveedor activo necesita para reproducir" —
-   * mismo campo, sin importar si el proveedor real es Mux o no.
+   * proveedor con API de creación de streams (ej. YouTube o Twitch,
+   * mientras Mux esté en el plan free que no permite live). Reutiliza
+   * muxPlaybackId como "el ID que el proveedor de este live manual
+   * necesita para reproducir" — mismo campo, sin importar cuál sea.
    */
-  async setManualLive(eventId: string, videoUrl?: string) {
+  async setManualLive(eventId: string, provider?: ManualLiveProvider, videoUrl?: string) {
     const event = await this.prisma.event.findUnique({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Evento no encontrado.');
 
     if (!videoUrl) {
       await this.prisma.event.update({
         where: { id: eventId },
-        data: { isLive: false, manualLiveStartedAt: null },
+        data: { isLive: false, manualLiveStartedAt: null, manualLiveProvider: null },
       });
       this.logger.log(`Live manual cortado para evento ${eventId}`);
       return { isLive: false };
     }
 
-    const playbackId = extractYouTubeId(videoUrl);
+    if (!provider) {
+      throw new BadRequestException('Falta indicar el proveedor del live manual (YOUTUBE o TWITCH).');
+    }
+
+    const playbackId =
+      provider === ManualLiveProvider.TWITCH ? extractTwitchChannel(videoUrl) : extractYouTubeId(videoUrl);
+
     if (!playbackId) {
-      throw new BadRequestException('No se pudo extraer un ID de YouTube de esa URL.');
+      throw new BadRequestException(
+        provider === ManualLiveProvider.TWITCH
+          ? 'No se pudo extraer un canal de Twitch de eso. Pegá el link (twitch.tv/tu_canal) o el nombre del canal directo.'
+          : 'No se pudo extraer un ID de YouTube de esa URL.',
+      );
     }
 
     await this.prisma.event.update({
       where: { id: eventId },
-      data: { muxPlaybackId: playbackId, isLive: true, manualLiveStartedAt: new Date() },
+      data: { muxPlaybackId: playbackId, isLive: true, manualLiveStartedAt: new Date(), manualLiveProvider: provider },
     });
-    this.logger.log(`Live manual activado para evento ${eventId}: ${playbackId}`);
-    return { isLive: true, playbackId };
+    this.logger.log(`Live manual (${provider}) activado para evento ${eventId}: ${playbackId}`);
+    return { isLive: true, playbackId, provider };
   }
 
   /**
