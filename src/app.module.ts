@@ -22,6 +22,7 @@ import { ThemeModule } from './theme/theme.module';
 import { MercadoPagoWebhookModule } from './payments/mercadopago-webhook.module';
 import { OrdersModule } from './orders/orders.module';
 import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
+import { LandingsModule } from './landings/landings.module';
 
 
 @Module({
@@ -63,6 +64,7 @@ import { ContentPurchasesModule } from './content-purchases/content-purchases.mo
     MercadoPagoWebhookModule,
     OrdersModule,
     ContentPurchasesModule,
+    LandingsModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todas las rutas

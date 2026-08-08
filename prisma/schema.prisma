@@ -519,3 +519,32 @@ model ThemeModuleOverride {
 
   @@map("theme_module_overrides")
 }
+
+enum LandingStatus {
+  DRAFT
+  PUBLISHED
+}
+
+// Landing armada por bloques (ver documentación de producto) — el contenido
+// vive como datos (JSON), no como código, para poder publicar sin deploy.
+// `blocks` es un array de objetos { id, type, content, style }; la validación
+// de forma vive en CreateLandingDto/UpdateLandingDto, no en el schema (Json
+// no puede expresar la unión de tipos de bloque acá).
+model Landing {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  status          LandingStatus @default(DRAFT)
+  seoTitle        String?
+  seoDescription  String?
+  seoOgImage      String?
+  blocks          Json          @default("[]")
+  // Escape hatch acotado a esta landing — ver la sección de estilos en la
+  // documentación de producto sobre por qué esto es aceptable y CSS
+  // arbitrario en el cliente no lo sería.
+  customCss       String?
+  createdByUserId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("landings")
+}
