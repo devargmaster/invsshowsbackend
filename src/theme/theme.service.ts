@@ -41,7 +41,7 @@ const DEFAULT_THEME: ThemePalette = {
   colorBg: '#0B0C0E',
   colorSurface: '#15171A',
   colorBorder: '#30343A',
-  colorAccent: '#D9F5F8',
+  colorAccent: '#3ED9EA',
   colorAccentHover: '#F4FEFF',
   colorText: '#F4F4F2',
   colorTextSecondary: '#B8BBC0',
