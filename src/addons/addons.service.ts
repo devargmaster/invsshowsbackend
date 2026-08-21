@@ -13,7 +13,7 @@ export class AddonsService {
 
   async findAllPublic(eventId: string) {
     return this.prisma.addOn.findMany({
-      where: { eventId, isActive: true },
+      where: { isActive: true, eventLinks: { some: { eventId } } },
       include: { variants: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { sortOrder: 'asc' },
     });
@@ -21,7 +21,27 @@ export class AddonsService {
 
   async findAllAdmin(eventId: string) {
     return this.prisma.addOn.findMany({
-      where: { eventId },
+      where: { eventLinks: { some: { eventId } } },
+      include: { variants: { orderBy: { sortOrder: 'asc' } } },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  /** [Admin] Todos los productos, sin filtrar por evento — pantalla global de Productos. */
+  async findAllProducts() {
+    return this.prisma.addOn.findMany({
+      include: {
+        variants: { orderBy: { sortOrder: 'asc' } },
+        eventLinks: { include: { event: { select: { id: true, title: true } } } },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  /** Catálogo público de la Tienda: productos standalone, sin importar a qué eventos estén vinculados. */
+  async findStoreProducts() {
+    return this.prisma.addOn.findMany({
+      where: { isActive: true, showInStore: true },
       include: { variants: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { sortOrder: 'asc' },
     });
@@ -30,21 +50,27 @@ export class AddonsService {
   async findOne(id: string) {
     const addon = await this.prisma.addOn.findUnique({
       where: { id },
-      include: { variants: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        variants: { orderBy: { sortOrder: 'asc' } },
+        eventLinks: { include: { event: { select: { id: true, title: true } } } },
+      },
     });
     if (!addon) throw new NotFoundException('Adicional no encontrado.');
     return addon;
   }
 
-  async create(eventId: string, dto: CreateAddonDto) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new NotFoundException('Evento no encontrado.');
+  /** Crea un producto. `dto.eventIds` puede venir vacío (producto solo de Tienda). */
+  async create(dto: CreateAddonDto) {
+    const eventIds = [...new Set(dto.eventIds ?? [])];
+    if (eventIds.length) {
+      const count = await this.prisma.event.count({ where: { id: { in: eventIds } } });
+      if (count !== eventIds.length) throw new NotFoundException('Alguno de los eventos indicados no existe.');
+    }
 
     const hasVariants = dto.hasVariants ?? false;
 
     return this.prisma.addOn.create({
       data: {
-        eventId,
         name: dto.name,
         description: dto.description,
         priceCents: dto.priceCents,
@@ -52,20 +78,40 @@ export class AddonsService {
         hasVariants,
         maxStock: dto.maxStock,
         sortOrder: dto.sortOrder ?? 0,
+        showInStore: dto.showInStore ?? false,
+        eventLinks: eventIds.length ? { create: eventIds.map((eventId) => ({ eventId })) } : undefined,
         variants:
           hasVariants && dto.variants?.length
             ? { create: dto.variants.map((label, i) => ({ label, sortOrder: i })) }
             : undefined,
       },
-      include: { variants: true },
+      include: { variants: true, eventLinks: true },
     });
   }
 
   async update(id: string, dto: UpdateAddonDto) {
     await this.findOne(id);
-    return this.prisma.addOn.update({
-      where: { id },
-      data: { ...dto },
+    const { eventIds, ...rest } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      if (eventIds !== undefined) {
+        const uniqueIds = [...new Set(eventIds)];
+        if (uniqueIds.length) {
+          const count = await tx.event.count({ where: { id: { in: uniqueIds } } });
+          if (count !== uniqueIds.length) throw new NotFoundException('Alguno de los eventos indicados no existe.');
+        }
+        // Reemplaza el set completo de vínculos por el nuevo (simple de razonar
+        // desde el form de Productos, que siempre manda la lista completa).
+        await tx.addonEventLink.deleteMany({ where: { addonId: id } });
+        if (uniqueIds.length) {
+          await tx.addonEventLink.createMany({ data: uniqueIds.map((eventId) => ({ addonId: id, eventId })) });
+        }
+      }
+      return tx.addOn.update({
+        where: { id },
+        data: { ...rest },
+        include: { variants: true, eventLinks: true },
+      });
     });
   }
 

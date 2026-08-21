@@ -66,7 +66,7 @@ export class OrdersService {
     const addonIds = [...new Set(addonItems.map((a) => a.addonId))];
     const addonsData = addonIds.length
       ? await this.prisma.addOn.findMany({
-          where: { id: { in: addonIds }, eventId: dto.eventId, isActive: true },
+          where: { id: { in: addonIds }, isActive: true, eventLinks: { some: { eventId: dto.eventId } } },
           include: { variants: true },
         })
       : [];

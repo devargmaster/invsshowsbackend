@@ -3,12 +3,13 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { MercadoPagoProvider } from './providers/mercadopago.provider';
 import { OrdersService } from '../orders/orders.service';
 import { ContentPurchasesService } from '../content-purchases/content-purchases.service';
+import { StorePurchasesService } from '../store-purchases/store-purchases.service';
 
 /**
  * Webhook de Mercado Pago. Vive en un módulo aparte (no en PaymentsController)
- * porque necesita OrdersService/ContentPurchasesService para confirmar el
- * pago, y esos módulos ya importan PaymentsModule — ponerlo ahí crearía un
- * import circular.
+ * porque necesita OrdersService/ContentPurchasesService/StorePurchasesService
+ * para confirmar el pago, y esos módulos ya importan PaymentsModule — ponerlo
+ * ahí crearía un import circular.
  */
 @ApiTags('Payments')
 @Controller('payments/mercadopago')
@@ -19,6 +20,7 @@ export class MercadoPagoWebhookController {
     private readonly mercadoPagoProvider: MercadoPagoProvider,
     private readonly ordersService: OrdersService,
     private readonly contentPurchasesService: ContentPurchasesService,
+    private readonly storePurchasesService: StorePurchasesService,
   ) {}
 
   @Post('webhook')
@@ -53,6 +55,8 @@ export class MercadoPagoWebhookController {
       await this.ordersService.confirmMercadoPagoPayment(entityId, dataId, approved);
     } else if (kind === 'content' && entityId) {
       await this.contentPurchasesService.confirmMercadoPagoPayment(entityId, dataId, approved);
+    } else if (kind === 'store' && entityId) {
+      await this.storePurchasesService.confirmMercadoPagoPayment(entityId, dataId, approved);
     } else {
       this.logger.warn(`external_reference sin reconocer en webhook de Mercado Pago: "${payment.externalReference}"`);
     }

@@ -25,23 +25,47 @@ export class AddonsController {
     return this.addonsService.findAllPublic(eventId);
   }
 
+  @Get('store/products')
+  @ApiOperation({ summary: 'Catálogo público de la Tienda (productos standalone)' })
+  findStoreProducts() {
+    return this.addonsService.findStoreProducts();
+  }
+
   // ── Admin ──────────────────────────────────────────────────────
+  @Get('addons/admin')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Listar TODOS los productos (catálogo global, sin filtrar por evento)' })
+  findAllProducts() {
+    return this.addonsService.findAllProducts();
+  }
+
   @Get('events/:eventId/addons/admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: '[Admin] Listar todos los adicionales, incluye inactivos' })
+  @ApiOperation({ summary: '[Admin] Listar los adicionales de un evento, incluye inactivos' })
   findAllAdmin(@Param('eventId') eventId: string) {
     return this.addonsService.findAllAdmin(eventId);
+  }
+
+  @Post('addons')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[Admin] Crear producto (sin evento asociado, o vinculado a varios vía eventIds)' })
+  create(@Body() dto: CreateAddonDto) {
+    return this.addonsService.create(dto);
   }
 
   @Post('events/:eventId/addons')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: '[Admin] Crear adicional (con variantes opcionales)' })
-  create(@Param('eventId') eventId: string, @Body() dto: CreateAddonDto) {
-    return this.addonsService.create(eventId, dto);
+  @ApiOperation({ summary: '[Admin] Crear adicional ya vinculado a este evento (con variantes opcionales)' })
+  createForEvent(@Param('eventId') eventId: string, @Body() dto: CreateAddonDto) {
+    return this.addonsService.create({ ...dto, eventIds: [...new Set([...(dto.eventIds ?? []), eventId])] });
   }
 
   @Patch('addons/:id')

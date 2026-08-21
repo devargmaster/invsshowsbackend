@@ -45,4 +45,21 @@ export class CreateAddonDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'true para que el producto aparezca en el catálogo standalone de la Tienda',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showInStore?: boolean;
+
+  @ApiPropertyOptional({
+    example: ['event-uuid-1', 'event-uuid-2'],
+    description: 'Eventos a los que se vincula como complemento (reemplaza el set completo en update)',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  eventIds?: string[];
 }

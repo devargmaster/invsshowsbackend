@@ -22,6 +22,7 @@ import { ThemeModule } from './theme/theme.module';
 import { MercadoPagoWebhookModule } from './payments/mercadopago-webhook.module';
 import { OrdersModule } from './orders/orders.module';
 import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
+import { StorePurchasesModule } from './store-purchases/store-purchases.module';
 import { LandingsModule } from './landings/landings.module';
 
 
@@ -64,6 +65,7 @@ import { LandingsModule } from './landings/landings.module';
     MercadoPagoWebhookModule,
     OrdersModule,
     ContentPurchasesModule,
+    StorePurchasesModule,
     LandingsModule,
   ],
   providers: [

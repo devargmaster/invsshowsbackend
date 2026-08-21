@@ -102,6 +102,8 @@ model User {
   transfersReceived         TicketTransfer[]  @relation("TransferRecipient")
   contentPurchases          ContentPurchase[] @relation("ContentPurchaseBuyer")
   contentPurchasesValidated ContentPurchase[] @relation("ContentPurchaseValidator")
+  storePurchases            StorePurchase[]   @relation("StorePurchaseBuyer")
+  storePurchasesValidated   StorePurchase[]   @relation("StorePurchaseValidator")
 
   @@map("users")
 }
@@ -165,7 +167,7 @@ model Event {
   tickets          Ticket[]
   recordings       Recording[]
   categories       TicketCategory[]
-  addons           AddOn[]
+  addonLinks       AddonEventLink[]
   orders           Order[]
   contentPurchases ContentPurchase[]
   photos           EventPhoto[]
@@ -200,10 +202,13 @@ model TicketCategory {
   @@map("ticket_categories")
 }
 
-// Catalogo de adicionales por evento (remera, cuadro dorado, conmemorativo).
+// Catalogo de productos (remera, cuadro dorado, conmemorativo, merchandising
+// suelto). Un producto puede venderse standalone en la Tienda (showInStore) y/o
+// como complemento de 0..N eventos (AddonEventLink) — antes solo podía
+// pertenecer a exactamente un evento. Este es el mismo patrón de tabla puente
+// que se reutilizará para Servicios/Artistas a futuro, sin volver a migrar esto.
 model AddOn {
   id            String  @id @default(uuid())
-  eventId       String
   name          String
   description   String?
   imageUrl      String?
@@ -213,16 +218,32 @@ model AddOn {
   maxStock      Int?
   reservedStock Int     @default(0)
   isActive      Boolean @default(true)
+  showInStore   Boolean @default(false) // visible en el catálogo standalone de la Tienda
   sortOrder     Int     @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event       Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  variants    AddonVariant[]
-  orderAddons OrderAddon[]
+  eventLinks     AddonEventLink[]
+  variants       AddonVariant[]
+  orderAddons    OrderAddon[]
+  storePurchases StorePurchase[]
 
   @@map("addons")
+}
+
+// Tabla puente producto↔evento (muchos a muchos): un mismo producto puede
+// ser complemento de varios eventos a la vez.
+model AddonEventLink {
+  id      String @id @default(uuid())
+  addonId String
+  eventId String
+
+  addon AddOn @relation(fields: [addonId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([addonId, eventId])
+  @@map("addon_event_links")
 }
 
 model AddonVariant {
@@ -231,8 +252,9 @@ model AddonVariant {
   label     String // "S", "M", "L", "XL"
   sortOrder Int    @default(0)
 
-  addon       AddOn        @relation(fields: [addonId], references: [id], onDelete: Cascade)
-  orderAddons OrderAddon[]
+  addon          AddOn           @relation(fields: [addonId], references: [id], onDelete: Cascade)
+  orderAddons    OrderAddon[]
+  storePurchases StorePurchase[]
 
   @@unique([addonId, label])
   @@map("addon_variants")
@@ -428,6 +450,47 @@ model ContentPurchase {
   event     Event?     @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@map("content_purchases")
+}
+
+// Compra individual de un producto de la Tienda (standalone, sin pasar por
+// comprar una entrada). Mismo espíritu que ContentPurchase: sin reserva de
+// aforo, mismo ciclo de pago (tarjeta/transferencia/Mercado Pago).
+model StorePurchase {
+  id            String        @id @default(uuid())
+  userId        String
+  addonId       String
+  variantId     String?
+  quantity      Int           @default(1)
+  status        OrderStatus
+  paymentMethod PaymentMethod
+  priceCents    Int // snapshot: precio unitario x quantity al momento de compra
+  currency      String        @default("ARS")
+
+  transferProofUrl  String?
+  transferReference String?
+  validatedByUserId String?
+  validatedAt       DateTime?
+  rejectionReason   String?
+
+  openpayChargeId String?
+  paymentError    String?
+
+  // Mercado Pago (Checkout Pro)
+  mercadoPagoPreferenceId String?
+  mercadoPagoPaymentId    String?
+
+  expiresAt DateTime?
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User          @relation("StorePurchaseBuyer", fields: [userId], references: [id])
+  validator User?         @relation("StorePurchaseValidator", fields: [validatedByUserId], references: [id])
+  addon     AddOn         @relation(fields: [addonId], references: [id], onDelete: Restrict)
+  variant   AddonVariant? @relation(fields: [variantId], references: [id])
+
+  @@map("store_purchases")
 }
 
 // Credenciales de proveedores de pago configurables desde el backoffice (hoy
