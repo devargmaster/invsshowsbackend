@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { ContactsService } from '../contacts/contacts.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly mailService: MailService,
+    private readonly contactsService: ContactsService,
   ) {
     this.googleClient = new OAuth2Client(this.config.get<string>('google.clientId'));
   }
@@ -49,6 +51,11 @@ export class AuthService {
         fullName: dto.fullName,
         passwordHash,
       },
+    });
+    await this.contactsService.ensureForUser(user.id, {
+      email: user.email,
+      fullName: user.fullName,
+      source: 'web_signup',
     });
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
@@ -125,6 +132,11 @@ export class AuthService {
               googleId: payload.sub,
             },
           });
+      await this.contactsService.ensureForUser(user.id, {
+        email: user.email,
+        fullName: user.fullName,
+        source: 'google_signup',
+      });
     }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);

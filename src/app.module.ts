@@ -24,6 +24,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ContentPurchasesModule } from './content-purchases/content-purchases.module';
 import { StorePurchasesModule } from './store-purchases/store-purchases.module';
 import { LandingsModule } from './landings/landings.module';
+import { ContactsModule } from './contacts/contacts.module';
 
 
 @Module({
@@ -67,6 +68,7 @@ import { LandingsModule } from './landings/landings.module';
     ContentPurchasesModule,
     StorePurchasesModule,
     LandingsModule,
+    ContactsModule,
   ],
   providers: [
     // Aplica ThrottlerGuard globalmente a todas las rutas

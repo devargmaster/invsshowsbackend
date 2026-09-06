@@ -5,12 +5,14 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { ContactsModule } from '../contacts/contacts.module';
 
 @Module({
   imports: [
     PassportModule,
     // JwtModule sin secret global — cada signAsync lleva su propio secret
     JwtModule.register({}),
+    ContactsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
