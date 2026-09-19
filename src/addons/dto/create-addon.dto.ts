@@ -1,13 +1,19 @@
 import {
-  IsString, IsNotEmpty, IsOptional, IsInt, Min, IsBoolean, IsArray,
+  IsString, IsNotEmpty, IsOptional, IsInt, Min, IsBoolean, IsArray, IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AddonCategory } from '@prisma/client';
 
 export class CreateAddonDto {
   @ApiProperty({ example: 'Remera conmemorativa' })
   @IsString()
   @IsNotEmpty()
   name: string;
+
+  @ApiPropertyOptional({ enum: AddonCategory, example: AddonCategory.PRODUCTO, description: 'PRODUCTO (default) o SERVICIO' })
+  @IsOptional()
+  @IsEnum(AddonCategory)
+  category?: AddonCategory;
 
   @ApiPropertyOptional({ example: 'Remera oficial del evento, edición limitada' })
   @IsOptional()

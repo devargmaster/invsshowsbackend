@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../common/services/supabase-storage.service';
 import { CreateAddonDto } from './dto/create-addon.dto';
 import { UpdateAddonDto } from './dto/update-addon.dto';
+import { AddonCategory } from '@prisma/client';
 
 @Injectable()
 export class AddonsService {
@@ -39,9 +40,9 @@ export class AddonsService {
   }
 
   /** Catálogo público de la Tienda: productos standalone, sin importar a qué eventos estén vinculados. */
-  async findStoreProducts() {
+  async findStoreProducts(category?: AddonCategory) {
     return this.prisma.addOn.findMany({
-      where: { isActive: true, showInStore: true },
+      where: { isActive: true, showInStore: true, ...(category ? { category } : {}) },
       include: { variants: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { sortOrder: 'asc' },
     });
@@ -72,6 +73,7 @@ export class AddonsService {
     return this.prisma.addOn.create({
       data: {
         name: dto.name,
+        category: dto.category,
         description: dto.description,
         priceCents: dto.priceCents,
         currency: dto.currency ?? 'ARS',

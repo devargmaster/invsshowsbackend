@@ -1,9 +1,9 @@
 import {
   Controller, Get, Post, Patch, Delete, Body,
-  Param, UseGuards, UseInterceptors, UploadedFile,
+  Param, Query, UseGuards, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiQuery } from '@nestjs/swagger';
 import { AddonsService } from './addons.service';
 import { CreateAddonDto } from './dto/create-addon.dto';
 import { UpdateAddonDto } from './dto/update-addon.dto';
@@ -12,7 +12,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { imageUploadMulterOptions } from '../common/config/image-upload-multer.config';
-import { UserRole } from '@prisma/client';
+import { UserRole, AddonCategory } from '@prisma/client';
 
 @ApiTags('Add-ons')
 @Controller()
@@ -27,8 +27,9 @@ export class AddonsController {
 
   @Get('store/products')
   @ApiOperation({ summary: 'Catálogo público de la Tienda (productos standalone)' })
-  findStoreProducts() {
-    return this.addonsService.findStoreProducts();
+  @ApiQuery({ name: 'category', enum: AddonCategory, required: false })
+  findStoreProducts(@Query('category') category?: AddonCategory) {
+    return this.addonsService.findStoreProducts(category);
   }
 
   // ── Admin ──────────────────────────────────────────────────────

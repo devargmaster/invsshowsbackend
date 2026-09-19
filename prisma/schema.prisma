@@ -82,6 +82,11 @@ enum ContactRole {
   AGENTE
 }
 
+enum AddonCategory {
+  PRODUCTO
+  SERVICIO
+}
+
 // ─────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────
@@ -269,7 +274,8 @@ model AddOn {
   imageUrl      String?
   priceCents    Int
   currency      String  @default("ARS")
-  hasVariants   Boolean @default(false) // true para remeras (talles)
+  category      AddonCategory @default(PRODUCTO)
+  hasVariants   Boolean @default(false) // true para remeras (talles) o para variantes de un servicio (ej. básico/premium)
   maxStock      Int?
   reservedStock Int     @default(0)
   isActive      Boolean @default(true)
