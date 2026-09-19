@@ -16,9 +16,10 @@ export class CreateEventDto {
   @IsNotEmpty()
   description: string;
 
-  @ApiProperty({ example: '2026-07-20T21:00:00Z' })
+  @ApiPropertyOptional({ example: '2026-07-20T21:00:00Z', description: 'Sin fecha = "Próximamente" (anunciado, sin venta de entradas todavía)' })
+  @IsOptional()
   @IsDateString()
-  date: string;
+  date?: string;
 
   @ApiPropertyOptional({ example: 'INVS Studio, Buenos Aires' })
   @IsOptional()

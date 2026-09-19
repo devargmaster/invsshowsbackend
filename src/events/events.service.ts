@@ -78,7 +78,7 @@ export class EventsService {
     const created = await this.prisma.event.create({
       data: {
         ...dto,
-        date: new Date(dto.date),
+        date: dto.date ? new Date(dto.date) : undefined, // undefined = "Próximamente", sin fecha
       },
     });
     return this.findOne(created.id);

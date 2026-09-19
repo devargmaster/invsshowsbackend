@@ -61,6 +61,9 @@ export class AccessRequestsService {
     if (request.status !== AccessRequestStatus.PENDING) {
       throw new ConflictException('Esta solicitud ya fue procesada.');
     }
+    if (!request.event.date) {
+      throw new BadRequestException('Este evento todavía no tiene fecha confirmada ("Próximamente") — cargale una fecha antes de aprobar accesos.');
+    }
 
     const category = await this.prisma.ticketCategory.findUnique({ where: { id: dto.categoryId } });
     if (!category || category.eventId !== request.eventId) {
@@ -101,7 +104,7 @@ export class AccessRequestsService {
         },
       });
 
-      await this.ordersService.activateOrderTickets(tx, order.id, request.event.date);
+      await this.ordersService.activateOrderTickets(tx, order.id, request.event.date!); // guardado arriba: la solicitud no se puede aprobar sin fecha confirmada
 
       await tx.accessRequest.update({
         where: { id: requestId },

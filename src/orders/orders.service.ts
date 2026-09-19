@@ -52,6 +52,9 @@ export class OrdersService {
 
     const event = await this.prisma.event.findUnique({ where: { id: dto.eventId } });
     if (!event) throw new NotFoundException('Evento no encontrado.');
+    if (!event.date) {
+      throw new BadRequestException('Este evento todavía no tiene fecha confirmada ("Próximamente") — no se pueden comprar entradas todavía.');
+    }
 
     const categoryIds = [...new Set(dto.items.map((i) => i.categoryId))];
     const categories = await this.prisma.ticketCategory.findMany({
@@ -217,7 +220,7 @@ export class OrdersService {
         where: { id: order.id },
         data: { status: OrderStatus.PAID, openpayChargeId: result.chargeId, paidAt: new Date() },
       });
-      await this.activateOrderTickets(tx, order.id, order.event.date);
+      await this.activateOrderTickets(tx, order.id, order.event.date!); // el evento no puede quedarse sin fecha con una Order ya creada (guard en create())
     });
 
     const ticketCount = await this.prisma.ticket.count({ where: { orderId: order.id } });
@@ -309,7 +312,7 @@ export class OrdersService {
         where: { id: order.id },
         data: { status: OrderStatus.PAID, mercadoPagoPaymentId: mpPaymentId, paidAt: new Date() },
       });
-      await this.activateOrderTickets(tx, order.id, order.event.date);
+      await this.activateOrderTickets(tx, order.id, order.event.date!); // el evento no puede quedarse sin fecha con una Order ya creada (guard en create())
     });
 
     const ticketCount = await this.prisma.ticket.count({ where: { orderId: order.id } });
@@ -359,7 +362,7 @@ export class OrdersService {
             paidAt: new Date(),
           },
         });
-        await this.activateOrderTickets(tx, orderId, order.event.date);
+        await this.activateOrderTickets(tx, orderId, order.event.date!); // idem
       });
       this.mailService.sendTransferOrderApproved(order.buyer.email, order.event.title);
     } else {

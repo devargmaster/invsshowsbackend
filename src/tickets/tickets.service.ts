@@ -252,7 +252,7 @@ export class TicketsService {
       `${this.webBaseUrl}/transfers/${token}`,
       {
         qrPayload: ticket.qrPayload,
-        eventDate: ticket.event.date,
+        eventDate: ticket.event.date!, // un Ticket solo existe para un evento con fecha confirmada (guard en OrdersService.create)
         eventLocation: ticket.event.location,
         categoryName: ticket.category?.name ?? null,
         redeemableAddons: ticket.order.addons

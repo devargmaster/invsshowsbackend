@@ -200,7 +200,7 @@ model Event {
   id          String      @id @default(uuid())
   title       String
   description String
-  date        DateTime
+  date        DateTime? // null = "Próximamente" (anunciado, fecha a confirmar) — no se pueden comprar entradas hasta que se cargue
   location    String?
   mode        EventMode
   status      EventStatus @default(DRAFT)
