@@ -30,8 +30,17 @@ export class EventsService {
     const where: Record<string, unknown> = {};
 
     if (filters.mode) where.mode = filters.mode;
-    if (filters.status) where.status = filters.status;
-    if (filters.upcoming) where.date = { gte: new Date() };
+    // "upcoming" ya no es "date >= ahora": un evento que arrancó hace 5
+    // minutos (o está sucediendo en este momento) sigue siendo relevante
+    // para el público — dejar de verse en el listado dependía antes de la
+    // hora exacta, así que un evento en vivo desaparecía apenas empezaba.
+    // Ahora se queda visible hasta que el staff lo marca COMPLETED a mano
+    // (o CANCELLED). `status` explícito, si viene, tiene prioridad.
+    if (filters.status) {
+      where.status = filters.status;
+    } else if (filters.upcoming) {
+      where.status = { notIn: [EventStatus.CANCELLED, EventStatus.COMPLETED] };
+    }
 
     const events = await this.prisma.event.findMany({
       where,
