@@ -61,8 +61,8 @@ export class AccessRequestsService {
     if (request.status !== AccessRequestStatus.PENDING) {
       throw new ConflictException('Esta solicitud ya fue procesada.');
     }
-    if (!request.event.date) {
-      throw new BadRequestException('Este evento todavía no tiene fecha confirmada ("Próximamente") — cargale una fecha antes de aprobar accesos.');
+    if (!request.event.commerciallyReleased || !request.event.date) {
+      throw new BadRequestException('Este evento todavía está en "Próximamente" — liberalo comercialmente (con fecha cargada) antes de aprobar accesos.');
     }
 
     const category = await this.prisma.ticketCategory.findUnique({ where: { id: dto.categoryId } });

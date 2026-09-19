@@ -197,13 +197,22 @@ model ContactRoleAssignment {
 }
 
 model Event {
-  id          String      @id @default(uuid())
-  title       String
-  description String
-  date        DateTime? // null = "Próximamente" (anunciado, fecha a confirmar) — no se pueden comprar entradas hasta que se cargue
-  location    String?
-  mode        EventMode
-  status      EventStatus @default(DRAFT)
+  id                   String      @id @default(uuid())
+  title                String
+  description          String
+  // La fecha puede cargarse aunque el evento no esté liberado todavía —
+  // son cosas independientes. Lo que decide si el público ve "Próximamente"
+  // o la fecha real (y si se pueden comprar entradas) es
+  // commerciallyReleased, no si date es null.
+  date                 DateTime?
+  // false = "Próximamente" en el front, sin venta de entradas, aunque ya
+  // tenga fecha cargada. El staff lo tilda a mano cuando está listo para
+  // vender. Default false para eventos nuevos; el backfill de la migración
+  // deja en true todo lo que ya existía (no puede des-vender nada).
+  commerciallyReleased Boolean     @default(false)
+  location             String?
+  mode                 EventMode
+  status               EventStatus @default(DRAFT)
 
   maxCapacity Int? // legacy: ya no se enforcea, la capacidad real vive en TicketCategory.maxCapacity
 

@@ -16,10 +16,15 @@ export class CreateEventDto {
   @IsNotEmpty()
   description: string;
 
-  @ApiPropertyOptional({ example: '2026-07-20T21:00:00Z', description: 'Sin fecha = "Próximamente" (anunciado, sin venta de entradas todavía)' })
+  @ApiPropertyOptional({ example: '2026-07-20T21:00:00Z', description: 'Se puede cargar aunque el evento todavía no esté liberado comercialmente (ver commerciallyReleased)' })
   @IsOptional()
   @IsDateString()
   date?: string;
+
+  @ApiPropertyOptional({ default: false, description: 'false = se muestra como "Próximamente" y no se pueden comprar entradas, aunque ya tenga fecha cargada' })
+  @IsOptional()
+  @IsBoolean()
+  commerciallyReleased?: boolean;
 
   @ApiPropertyOptional({ example: 'INVS Studio, Buenos Aires' })
   @IsOptional()

@@ -52,8 +52,8 @@ export class OrdersService {
 
     const event = await this.prisma.event.findUnique({ where: { id: dto.eventId } });
     if (!event) throw new NotFoundException('Evento no encontrado.');
-    if (!event.date) {
-      throw new BadRequestException('Este evento todavía no tiene fecha confirmada ("Próximamente") — no se pueden comprar entradas todavía.');
+    if (!event.commerciallyReleased || !event.date) {
+      throw new BadRequestException('Este evento todavía está en "Próximamente" — no se pueden comprar entradas hasta que se libere comercialmente.');
     }
 
     const categoryIds = [...new Set(dto.items.map((i) => i.categoryId))];
