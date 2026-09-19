@@ -51,6 +51,13 @@ enum PaymentMethod {
   CARD_OPENPAY // Openpay Argentina (BBVA) — docs.ecommercebbva.com
   BANK_TRANSFER // queda PENDING_PAYMENT hasta validación manual en backoffice
   MERCADOPAGO // Checkout Pro — confirmación async por webhook
+  FREE // orden generada al aprobar un AccessRequest (acreditación), sin cobro real
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum TicketStatus {
@@ -125,6 +132,8 @@ model User {
   contentPurchasesValidated ContentPurchase[] @relation("ContentPurchaseValidator")
   storePurchases            StorePurchase[]   @relation("StorePurchaseBuyer")
   storePurchasesValidated   StorePurchase[]   @relation("StorePurchaseValidator")
+  accessRequests            AccessRequest[]   @relation("AccessRequestRequester")
+  accessRequestsReviewed    AccessRequest[]   @relation("AccessRequestReviewer")
 
   @@map("users")
 }
@@ -196,15 +205,15 @@ model Event {
   mode        EventMode
   status      EventStatus @default(DRAFT)
 
-  maxCapacity   Int? // legacy: ya no se enforcea, la capacidad real vive en TicketCategory.maxCapacity
+  maxCapacity Int? // legacy: ya no se enforcea, la capacidad real vive en TicketCategory.maxCapacity
 
   // Streaming / Mux
-  muxAssetId    String? // Asset ID de Mux (grabación/VOD)
-  muxPlaybackId String? // Playback ID público de Mux
-  muxLiveId     String? // Live stream ID de Mux
-  streamKey     String? // Stream key RTMP para OBS/broadcast
-  rtmpUrl       String? // URL RTMP del ingest de Mux
-  isLive        Boolean @default(false)
+  muxAssetId          String? // Asset ID de Mux (grabación/VOD)
+  muxPlaybackId       String? // Playback ID público de Mux
+  muxLiveId           String? // Live stream ID de Mux
+  streamKey           String? // Stream key RTMP para OBS/broadcast
+  rtmpUrl             String? // URL RTMP del ingest de Mux
+  isLive              Boolean             @default(false)
   // Solo se setea para el live manual (sin muxLiveId) — el cron de
   // ManualLiveCleanupService lo usa para cortar solo si nadie lo hizo a mano.
   manualLiveStartedAt DateTime?
@@ -231,6 +240,7 @@ model Event {
   orders           Order[]
   contentPurchases ContentPurchase[]
   photos           EventPhoto[]
+  accessRequests   AccessRequest[]
 
   @@map("events")
 }
@@ -256,8 +266,9 @@ model TicketCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event   Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  tickets Ticket[]
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  tickets        Ticket[]
+  accessRequests AccessRequest[]
 
   @@map("ticket_categories")
 }
@@ -268,19 +279,19 @@ model TicketCategory {
 // pertenecer a exactamente un evento. Este es el mismo patrón de tabla puente
 // que se reutilizará para Servicios/Artistas a futuro, sin volver a migrar esto.
 model AddOn {
-  id            String  @id @default(uuid())
+  id            String        @id @default(uuid())
   name          String
   description   String?
   imageUrl      String?
   priceCents    Int
-  currency      String  @default("ARS")
+  currency      String        @default("ARS")
   category      AddonCategory @default(PRODUCTO)
-  hasVariants   Boolean @default(false) // true para remeras (talles) o para variantes de un servicio (ej. básico/premium)
+  hasVariants   Boolean       @default(false) // true para remeras (talles) o para variantes de un servicio (ej. básico/premium)
   maxStock      Int?
-  reservedStock Int     @default(0)
-  isActive      Boolean @default(true)
-  showInStore   Boolean @default(false) // visible en el catálogo standalone de la Tienda
-  sortOrder     Int     @default(0)
+  reservedStock Int           @default(0)
+  isActive      Boolean       @default(true)
+  showInStore   Boolean       @default(false) // visible en el catálogo standalone de la Tienda
+  sortOrder     Int           @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -355,14 +366,49 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  buyer       User         @relation("OrderBuyer", fields: [buyerId], references: [id])
-  validatedBy User?        @relation("OrderValidator", fields: [validatedByUserId], references: [id])
-  event       Event        @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  tickets     Ticket[]
-  addons      OrderAddon[]
+  buyer         User           @relation("OrderBuyer", fields: [buyerId], references: [id])
+  validatedBy   User?          @relation("OrderValidator", fields: [validatedByUserId], references: [id])
+  event         Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  tickets       Ticket[]
+  addons        OrderAddon[]
+  accessRequest AccessRequest?
 
   @@index([status, paymentMethod])
   @@map("orders")
+}
+
+// Pedido de acceso sin compra ("tengo código de acceso" / acreditación de
+// prensa) para cualquier evento. `code` es texto libre, sin validar contra
+// nada — es solo referencia para que el staff decida a mano; la aprobación
+// real es 100% humana. Al aprobar, se elige una TicketCategory y se genera
+// una Order+Ticket reales con costo $0 (paymentMethod FREE), así el acceso
+// se escanea/valida exactamente igual que una entrada comprada, sin tocar
+// nada del flujo de venta existente.
+model AccessRequest {
+  id      String              @id @default(uuid())
+  eventId String
+  userId  String // quien pide el acceso (siempre logueado en invs-web)
+  code    String? // texto libre que ingresa la persona, no se valida
+  note    String? // opcional: medio/organización, motivo
+  status  AccessRequestStatus @default(PENDING)
+
+  categoryId String? // se completa al aprobar (el staff elige la categoría)
+  orderId    String? @unique // se completa al aprobar
+
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  rejectionReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event      Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user       User            @relation("AccessRequestRequester", fields: [userId], references: [id])
+  reviewedBy User?           @relation("AccessRequestReviewer", fields: [reviewedByUserId], references: [id])
+  category   TicketCategory? @relation(fields: [categoryId], references: [id])
+  order      Order?          @relation(fields: [orderId], references: [id])
+
+  @@map("access_requests")
 }
 
 model OrderAddon {

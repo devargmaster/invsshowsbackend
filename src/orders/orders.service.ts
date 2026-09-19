@@ -417,7 +417,10 @@ export class OrdersService {
 
   // ─── Helpers internos ────────────────────────────────────────────
 
-  private async activateOrderTickets(tx: Prisma.TransactionClient, orderId: string, eventDate: Date) {
+  // Público a propósito: AccessRequestsService lo reutiliza para activar
+  // (firmar QR) el ticket de una acreditación aprobada, sin duplicar la
+  // lógica de firma acá y allá.
+  async activateOrderTickets(tx: Prisma.TransactionClient, orderId: string, eventDate: Date) {
     const tickets = await tx.ticket.findMany({ where: { orderId } });
     const expiresAt = new Date(eventDate.getTime() + 4 * 60 * 60 * 1000);
 

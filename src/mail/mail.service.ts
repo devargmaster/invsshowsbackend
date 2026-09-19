@@ -207,4 +207,22 @@ export class MailService {
     );
     void this.safeSend(to, `Pago no validado — ${productTitle}`, html);
   }
+
+  sendAccessRequestApproved(to: string, eventTitle: string): void {
+    const html = layout(
+      '¡Acceso aprobado!',
+      `<p>Aprobamos tu solicitud de acceso para <b>${eventTitle}</b>. Ya tenés tu entrada disponible en la sección Compras, con su QR listo para el ingreso.</p>`,
+    );
+    void this.safeSend(to, `Acceso aprobado — ${eventTitle}`, html);
+  }
+
+  sendAccessRequestRejected(to: string, eventTitle: string, reason?: string): void {
+    const html = layout(
+      'Tu solicitud de acceso no fue aprobada',
+      `<p>No pudimos aprobar tu solicitud de acceso para <b>${eventTitle}</b>.</p>
+       ${reason ? `<p>Motivo: ${reason}</p>` : ''}
+       <p>Escribinos si creés que es un error.</p>`,
+    );
+    void this.safeSend(to, `Solicitud no aprobada — ${eventTitle}`, html);
+  }
 }
