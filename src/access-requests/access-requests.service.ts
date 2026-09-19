@@ -28,7 +28,7 @@ export class AccessRequestsService {
     if (existing) return existing;
 
     return this.prisma.accessRequest.create({
-      data: { eventId: dto.eventId, userId, code: dto.code, note: dto.note },
+      data: { eventId: dto.eventId, userId, code: dto.code, phone: dto.phone, note: dto.note },
     });
   }
 

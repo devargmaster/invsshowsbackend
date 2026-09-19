@@ -389,6 +389,7 @@ model AccessRequest {
   eventId String
   userId  String // quien pide el acceso (siempre logueado en invs-web)
   code    String? // texto libre que ingresa la persona, no se valida
+  phone   String? // para que el staff pueda contactar/chequear antes de aprobar
   note    String? // opcional: medio/organización, motivo
   status  AccessRequestStatus @default(PENDING)
 

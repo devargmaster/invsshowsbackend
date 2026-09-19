@@ -12,6 +12,11 @@ export class CreateAccessRequestDto {
   @IsString()
   code?: string;
 
+  @ApiProperty({ example: '+54 9 11 1234-5678', description: 'Para que el staff pueda contactar/chequear antes de aprobar (previene fraude)' })
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
   @ApiPropertyOptional({ example: 'La Nación — sección Espectáculos' })
   @IsOptional()
   @IsString()
