@@ -8,6 +8,7 @@ import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { spanishValidationOptions } from './common/validation/spanish-validation';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -35,14 +36,9 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   // ── Validation ───────────────────────────────────────────────────
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,         // Elimina props no declaradas en DTO
-      forbidNonWhitelisted: true,
-      transform: true,         // Transforma payloads al tipo del DTO
-      transformOptions: { enableImplicitConversion: true },
-    }),
-  );
+  // Mensajes en español: class-validator los devuelve en inglés por
+  // default (ver spanish-validation.ts, traduce por nombre de constraint).
+  app.useGlobalPipes(new ValidationPipe(spanishValidationOptions));
 
   // ── Global exception filter ──────────────────────────────────────
   app.useGlobalFilters(new HttpExceptionFilter());
