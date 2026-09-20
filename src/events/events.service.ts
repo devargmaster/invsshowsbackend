@@ -50,6 +50,7 @@ export class EventsService {
         title: true,
         description: true,
         date: true,
+        commerciallyReleased: true,
         location: true,
         mode: true,
         status: true,
